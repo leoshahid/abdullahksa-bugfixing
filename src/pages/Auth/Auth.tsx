@@ -26,11 +26,18 @@ const Auth = () => {
   const [requestId, setRequestId] = useState<string>('');
   const [error, setError] = useState<Error | null>(null);
 
+  const [isRegistered, setIsRegistered] = useState(false);
+
 
   const handleLogin = async (email: string, password: string) => {
     await HttpReq(
       urls.login,
       (data) => {
+        console.log('Loged In');
+        if (!("idToken" in (data as any))) {
+          setError(new Error('Login Error'))
+          return
+        }
         setAuthResponse(data as AuthResponse);
         setTimeout(() => {
           nav('/')
@@ -40,7 +47,7 @@ const Auth = () => {
       () => { },
       () => { },
       (e) => {
-        console.log(e);
+        setError(e);
       },
       "post",
       { email, password }
@@ -51,7 +58,16 @@ const Auth = () => {
   const handleRegistration = async (email: string, password: string, username: string) => {
     await HttpReq(
       urls.create_user_profile,
-      setAuthResponse,
+      (data) => {
+        if (!("idToken" in (data as any))) {
+          setError(new Error('Registeration Error'))
+          return
+        }
+
+        setAuthResponse(data as AuthResponse);
+        setIsRegistered(true);
+        console.log('registered');
+      },
       setAuthMessage,
       setRequestId,
       setIsLoading,
@@ -60,12 +76,16 @@ const Auth = () => {
       { email, password, username }
     );
 
-    // If no error occurred during registration, proceed with login
-    if (!error) {
-      await handleLogin(email, password);
-    }
   };
 
+  useEffect(() => {
+    // If no error occurred during registration, proceed with login
+    console.log(error?.message);
+    if (!error && isRegistered) {
+      handleLogin(email, password);
+    }
+
+  }, [isRegistered])
 
   const handlePasswordReset = async (email: string) => {
     await HttpReq(
@@ -177,6 +197,7 @@ const Auth = () => {
           <h2 className={styles.authTitle}>
             {isPasswordReset ? 'Reset Password' : isLogin ? 'Login' : 'Register'}
           </h2>
+          <div className="text-red-500 mb-2">{error?.message}</div>
           {authMessage && <p className={styles.authMessage}>{authMessage}</p>}
           {renderForm()}
           <div className={styles.authOptions}>

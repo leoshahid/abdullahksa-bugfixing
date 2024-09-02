@@ -119,6 +119,7 @@ export interface CatalogContextType {
   updateLayerColor(layerIndex: number | null, newColor: string): void;
   updateLayerDisplay(layerIndex: number, display: boolean): void;
   // updateLayerZone(layerIndex: number, isZoneLayer: boolean): void;
+  updateLayerHeatmap(layerIndex: number, isHeatmap: boolean): void;
   removeLayer(layerIndex: number): void;
   saveResponse: SaveResponse | null;
   saveResponseMsg: string;
@@ -294,6 +295,7 @@ export interface MapFeatures extends FetchDatasetResponse {
   layer_legend?: string;
   layer_description?: string;
   is_zone_lyr?: string;
+  is_heatmap?: boolean;
   [key: string]: any;
 }
 

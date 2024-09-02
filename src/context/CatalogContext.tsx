@@ -200,6 +200,14 @@ export function CatalogProvider(props: { children: ReactNode }) {
     });
   }
 
+  function updateLayerHeatmap(layerIndex: number, isHeatmap: boolean) {
+    setGeoPoints(function (prevGeoPoints) {
+      var updatedGeoPoints = prevGeoPoints.slice();
+      updatedGeoPoints[layerIndex].is_heatmap = isHeatmap;
+      return updatedGeoPoints;
+    });
+  }
+
   // function updateLayerZone(layerIndex: number, isZoneLayer: boolean) {
   //   setGeoPoints((prevGeoPoints) => {
   //     const updatedGeoPoints = [...prevGeoPoints];
@@ -254,6 +262,7 @@ export function CatalogProvider(props: { children: ReactNode }) {
         updateLayerColor,
         updateLayerDisplay,
         // updateLayerZone,
+        updateLayerHeatmap,
         removeLayer,
       }}
     >

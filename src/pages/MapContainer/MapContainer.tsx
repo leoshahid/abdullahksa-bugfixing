@@ -1,7 +1,7 @@
 import 'mapbox-gl/dist/mapbox-gl.css'
 import React, { useEffect, useRef } from "react";
 import mapboxgl, { Map as MapboxMap, GeoJSONSource } from "mapbox-gl";
-import mapConfig from "../../../mapConfig.json";
+import mapConfig from "../../mapConfig.json";
 import { useLayerContext } from '../../context/LayerContext';
 import { useCatalogContext } from '../../context/CatalogContext';
 import { CustomProperties } from '../../types/allTypesAndInterfaces';
@@ -92,11 +92,62 @@ function MapContainer() {
               if (existingSource) {
                 existingSource.setData(featureCollection);
                 if (mapRef.current) {
-                  mapRef.current.setPaintProperty(
-                    layerId,
-                    "circle-color",
-                    featureCollection.points_color || mapConfig.defaultColor
-                  );
+
+                  if (featureCollection.is_heatmap) {
+                    mapRef.current.removeLayer(layerId);
+                    mapRef.current.addLayer({
+                      id: layerId,
+                      type: 'heatmap',
+                      source: sourceId,
+                      paint: {
+                        'heatmap-color': [
+                          'interpolate',
+                          ['linear'],
+                          ['heatmap-density'],
+                          0,
+                          'rgba(33,102,172,0)',
+                          0.2,
+                          featureCollection.points_color || mapConfig.defaultColor,
+                          0.4,
+                          'rgb(209,229,240)',
+                          0.6,
+                          'rgb(253,219,199)',
+                          0.8,
+                          'rgb(239,138,98)',
+                          1,
+                          'rgb(178,24,43)'
+                        ],
+                      }
+                    })
+                  }
+                  else {
+                    mapRef.current.removeLayer(layerId);
+                    mapRef.current.addLayer({
+                      id: layerId,
+                      type: 'circle',
+                      source: sourceId,
+                      paint: {
+                        "circle-radius": [
+                          "case",
+                          ["boolean", ["feature-state", "hover"], false],
+                          mapConfig.hoverCircleRadius,
+                          mapConfig.circleRadius,
+                        ],
+                        "circle-color":
+                          featureCollection.points_color ||
+                          mapConfig.defaultColor,
+                        "circle-opacity": mapConfig.circleOpacity,
+                        "circle-stroke-width": mapConfig.circleStrokeWidth,
+                        "circle-stroke-color": mapConfig.circleStrokeColor,
+                      },
+                    })
+                    mapRef.current.setPaintProperty(
+                      layerId,
+                      "circle-color",
+                      featureCollection.points_color || mapConfig.defaultColor,
+                    );
+                  }
+
                 }
               } else {
                 if (mapRef.current) {
@@ -105,26 +156,54 @@ function MapContainer() {
                     data: featureCollection,
                     generateId: true,
                   });
+                  
+                  if (featureCollection.is_heatmap) {
+                    mapRef.current.addLayer({
+                      id: layerId,
+                      type: 'heatmap',
+                      source: sourceId,
+                      paint: {
+                        'heatmap-color': [
+                          'interpolate',
+                          ['linear'],
+                          ['heatmap-density'],
+                          0,
+                          'rgba(33,102,172,0)',
+                          0.2,
+                          featureCollection.points_color || mapConfig.defaultColor,
+                          0.4,
+                          'rgb(209,229,240)',
+                          0.6,
+                          'rgb(253,219,199)',
+                          0.8,
+                          'rgb(239,138,98)',
+                          1,
+                          'rgb(178,24,43)'
+                        ],
+                      }
+                    })
+                  } else {
+                    mapRef.current.addLayer({
+                      id: layerId,
+                      type: 'circle',
+                      source: sourceId,
+                      paint: {
+                        "circle-radius": [
+                          "case",
+                          ["boolean", ["feature-state", "hover"], false],
+                          mapConfig.hoverCircleRadius,
+                          mapConfig.circleRadius,
+                        ],
+                        "circle-color":
+                          featureCollection.points_color ||
+                          mapConfig.defaultColor,
+                        "circle-opacity": mapConfig.circleOpacity,
+                        "circle-stroke-width": mapConfig.circleStrokeWidth,
+                        "circle-stroke-color": mapConfig.circleStrokeColor,
+                      },
+                    });
+                  }
 
-                  mapRef.current.addLayer({
-                    id: layerId,
-                    type: "circle",
-                    source: sourceId,
-                    paint: {
-                      "circle-radius": [
-                        "case",
-                        ["boolean", ["feature-state", "hover"], false],
-                        mapConfig.hoverCircleRadius,
-                        mapConfig.circleRadius,
-                      ],
-                      "circle-color":
-                        featureCollection.points_color ||
-                        mapConfig.defaultColor,
-                      "circle-opacity": mapConfig.circleOpacity,
-                      "circle-stroke-width": mapConfig.circleStrokeWidth,
-                      "circle-stroke-color": mapConfig.circleStrokeColor,
-                    },
-                  });
                 }
 
                 let hoveredStateId: number | null = null;

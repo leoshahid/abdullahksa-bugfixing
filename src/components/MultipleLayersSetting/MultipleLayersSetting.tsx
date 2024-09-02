@@ -10,6 +10,7 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
   const {
     geoPoints,
     updateLayerDisplay,
+    updateLayerHeatmap,
     // updateLayerZone,
     removeLayer,
   } = useCatalogContext();
@@ -19,17 +20,20 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
     prdcer_layer_name,
     is_zone_lyr,
     display,
+    is_heatmap
   } = layer;
 
   const [isZoneLayer, setIsZoneLayer] = useState(is_zone_lyr);
   const [isDisplay, setIsDisplay] = useState(display);
+  const [isHeatmap, setIsHeatmap] = useState(is_heatmap);
 
   useEffect(
     function () {
       setIsZoneLayer(layer.is_zone_lyr);
       setIsDisplay(layer.display);
+      setIsHeatmap(layer.is_heatmap);
     },
-    [layer.is_zone_lyr, layer.display]
+    [layer.is_zone_lyr, layer.display, layer.is_heatmap]
   );
 
   // function handleZoneLayerChange() {
@@ -41,6 +45,11 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
     updateLayerDisplay(layerIndex, !isDisplay);
     setIsDisplay(!isDisplay);
   }
+
+  function handleHeatMapChange() {
+    updateLayerHeatmap(layerIndex, !isHeatmap);
+    setIsHeatmap(!isHeatmap);
+  } 
 
   function handleRemoveLayer() {
     removeLayer(layerIndex);
@@ -59,11 +68,11 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
       </div>
       <div className={styles.checkboxesContainer}>
         <div className={styles.checkboxContainer}>
-          <p className={styles.zl}>Zone Layer</p>
+          <p className={styles.zl}>Heatmap</p>
           <input
             type="checkbox"
-            // checked={isZoneLayer}
-            // onChange={handleZoneLayerChange}
+            checked={isHeatmap}
+            onChange={handleHeatMapChange}
             className={styles.checkbox}
           />
         </div>
