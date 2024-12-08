@@ -76,7 +76,7 @@ export function CatalogProvider(props: { children: ReactNode }) {
   const [isAdvancedMode, setIsAdvancedMode] = useState({});
   const [radiusInput, setRadiusInput] = useState<number | null>(null);
   const [isRadiusMode, setIsRadiusMode] = useState(false);
-  const [colors, setColors] = useState<string[]>([]);
+  const [colors, setColors] = useState<string[][]>([]);
 
   const [reqGradientColorBasedOnZone, setReqGradientColorBasedOnZone] =
     useState<ReqGradientColorBasedOnZone>({
@@ -97,6 +97,12 @@ export function CatalogProvider(props: { children: ReactNode }) {
   const [chosenPallet, setChosenPallet] = useState(null);
   const [selectedBasedon, setSelectedBasedon] = useState<string>("rating");
   const [layerColors, setLayerColors] = useState({});
+  const [visualizationMode, setVisualizationMode] = useState<VisualizationMode>('vertex');
+  const [deletedLayers, setDeletedLayers] = useState<{
+    layer: MapFeatures;
+    index: number;
+    timestamp: number;
+  }[]>([]);
 
   useEffect(
     function () {
@@ -292,10 +298,11 @@ export function CatalogProvider(props: { children: ReactNode }) {
 
   function updateLayerDisplay(layerIndex: number, display: boolean) {
     setGeoPoints(function (prevGeoPoints) {
-      var updatedGeoPoints = prevGeoPoints.slice();
+      const updatedGeoPoints = prevGeoPoints.slice();
       updatedGeoPoints[layerIndex].display = display;
       return updatedGeoPoints;
     });
+    // Bounds will be recalculated via useEffect in MapContainer
   }
 
   function updateLayerHeatmap(layerIndex: number, isHeatmap: boolean) {
@@ -308,9 +315,39 @@ export function CatalogProvider(props: { children: ReactNode }) {
 
   function removeLayer(layerIndex: number) {
     setGeoPoints(function (prevGeoPoints) {
-      var updatedGeoPoints = prevGeoPoints.filter(function (_, index) {
-        return index !== layerIndex;
-      });
+      const removedLayer = prevGeoPoints[layerIndex];
+      // Store the deleted layer with its metadata
+      setDeletedLayers(prev => [...prev, {
+        layer: removedLayer,
+        index: layerIndex,
+        timestamp: Date.now()
+      }]);
+      return prevGeoPoints.filter((_, index) => index !== layerIndex);
+    });
+  }
+
+  function restoreLayer(timestamp: number) {
+    const deletedLayer = deletedLayers.find(layer => layer.timestamp === timestamp);
+    if (!deletedLayer) return;
+
+    setGeoPoints(prev => {
+      const newLayers = [...prev];
+      newLayers.splice(deletedLayer.index, 0, deletedLayer.layer);
+      return newLayers;
+    });
+
+    setDeletedLayers(prev => prev.filter(layer => layer.timestamp !== timestamp));
+  }
+
+  function updateLayerVisualization(layerIndex: number, mode: VisualizationMode) {
+    setGeoPoints(function (prevGeoPoints) {
+      const updatedGeoPoints = prevGeoPoints.slice();
+      updatedGeoPoints[layerIndex] = {
+        ...updatedGeoPoints[layerIndex],
+        visualization_mode: mode,
+        is_heatmap: mode === 'heatmap',
+        is_grid: mode === 'grid'
+      };
       return updatedGeoPoints;
     });
   }
@@ -369,6 +406,27 @@ export function CatalogProvider(props: { children: ReactNode }) {
       return updatedIndices;
     });
   };
+
+  function updateLayerGrid(layerIndex: number, isGrid: boolean) {
+    setGeoPoints(function (prevGeoPoints) {
+      const updatedGeoPoints = prevGeoPoints.slice();
+      if (isGrid) {
+        // If enabling grid, disable heatmap
+        updatedGeoPoints[layerIndex] = {
+          ...updatedGeoPoints[layerIndex],
+          is_grid: true,
+          is_heatmap: false
+        };
+      } else {
+        updatedGeoPoints[layerIndex] = {
+          ...updatedGeoPoints[layerIndex],
+          is_grid: false
+        };
+      }
+      return updatedGeoPoints;
+    });
+  }
+
   return (
     <CatalogContext.Provider
       value={{
@@ -431,6 +489,9 @@ export function CatalogProvider(props: { children: ReactNode }) {
         setLayerColors,
         isRadiusMode,
         setIsRadiusMode,
+        updateLayerGrid,
+        deletedLayers,
+        restoreLayer,
       }}
     >
       {children}

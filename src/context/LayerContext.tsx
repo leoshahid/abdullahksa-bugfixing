@@ -86,7 +86,7 @@ export function LayerProvider(props: { children: ReactNode }) {
 
   const [localLoading, setLocalLoading] = useState<boolean>(false);
   const [textSearchInput, setTextSearchInput] = useState<string>("");
-  const [searchType, setSearchType] = useState<string>("new nearby search");
+  const [searchType, setSearchType] = useState<string>("category_search");
   const [password, setPassword] = useState<string>("");
 
   const callCountRef = useRef<number>(0);
@@ -128,6 +128,7 @@ export function LayerProvider(props: { children: ReactNode }) {
       points_color: selectedColor.hex,
       layer_legend: reqSaveLayer.legend,
       layer_description: reqSaveLayer.description,
+      city_name: reqFetchDataset.selectedCity,
       user_id: authResponse.localId,
     };
 
@@ -205,6 +206,7 @@ export function LayerProvider(props: { children: ReactNode }) {
           features: response.features,
           display: true,
           points_color: "#28A745",
+          city_name: reqFetchDataset.selectedCity,
         },
       ];
     });
@@ -248,15 +250,14 @@ export function LayerProvider(props: { children: ReactNode }) {
     const postData = {
       dataset_country: reqFetchDataset.selectedCountry,
       dataset_city: reqFetchDataset.selectedCity,
+
       includedTypes: reqFetchDataset.includedTypes,
       excludedTypes: reqFetchDataset.excludedTypes,
       action: action,
       search_type: searchType,
-      ...(searchType === "text search" && {
-        text_search_input: textSearchInput.trim(),
-      }),
+      text_search: textSearchInput.trim() || "",
       ...(action === "full data" && { password: password }),
-      ...(pageToken && { page_token: pageToken }),
+      page_token: pageToken || "",
       user_id: user_id,
     };
 
@@ -391,8 +392,10 @@ export function LayerProvider(props: { children: ReactNode }) {
     }
     if (
       reqFetchDataset.includedTypes.length === 0 &&
-      reqFetchDataset.excludedTypes.length === 0
+      reqFetchDataset.excludedTypes.length === 0 &&
+      searchType !== "keyword_search"
     ) {
+      console.log("At least one category must be included or excluded.", reqFetchDataset, searchType);
       return new Error("At least one category must be included or excluded.");
     }
     if (
@@ -406,6 +409,10 @@ export function LayerProvider(props: { children: ReactNode }) {
     return true;
   }
 
+  useEffect(() => {
+    console.log("searchType", searchType);
+  }, [searchType]);
+
   function resetFetchDatasetForm() {
     // Reset form data when component unmounts
     setReqFetchDataset({
@@ -415,7 +422,7 @@ export function LayerProvider(props: { children: ReactNode }) {
       excludedTypes: [],
     });
     setTextSearchInput("");
-    setSearchType("new nearby search");
+    setSearchType("category_search");
     setPassword("");
     setGeoPoints([]);
   }

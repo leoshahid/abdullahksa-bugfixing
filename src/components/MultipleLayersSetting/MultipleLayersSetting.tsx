@@ -16,14 +16,17 @@ import { HttpReq } from "../../services/apiService";
 import urls from "../../urls.json";
 import { useAuth } from "../../context/AuthContext";
 import BasedOnDropdown from "./BasedOnDropdown";
+import apiRequest from "../../services/apiRequest";
 
 function MultipleLayersSetting(props: MultipleLayersSettingProps) {
   const { layerIndex } = props;
   const {
     geoPoints,
+    setGeoPoints,
     updateLayerDisplay,
     updateLayerHeatmap,
     removeLayer,
+    restoreLayer,
     isAdvanced,
     setIsAdvanced,
     openDropdownIndices,
@@ -40,24 +43,31 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
     setGradientColorBasedOnZone,
     setIsAdvancedMode,
     setIsRadiusMode,
+    updateLayerGrid,
   } = useCatalogContext();
   const layer = geoPoints[layerIndex];
   console.log(layer);
   console.log(geoPoints);
-  const { prdcer_layer_name, is_zone_lyr, display, is_heatmap } = layer;
+  const { prdcer_layer_name, is_zone_lyr, display, is_heatmap, is_grid, city_name } = layer;
   const [isZoneLayer, setIsZoneLayer] = useState(is_zone_lyr);
   const [isDisplay, setIsDisplay] = useState(display);
   const [isHeatmap, setIsHeatmap] = useState(is_heatmap);
+  const [isGrid, setIsGrid] = useState(is_grid);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const { authResponse } = useAuth();
 
   const [isError, setIsError] = useState<Error | null>(null);
-  const [radiusInput, setRadiusInput] = useState(0);
+  const [radiusInput, setRadiusInput] = useState(
+    layer.radius_meters || 1000
+  );
   const isFirstRender = useRef(true);
 
   const dropdownIndex = layerIndex ?? -1;
   const isOpen = openDropdownIndices[1] === dropdownIndex;
+
+  const [showRestorePrompt, setShowRestorePrompt] = useState(false);
+  const [deletedTimestamp, setDeletedTimestamp] = useState<number | null>(null);
 
   useEffect(function () {
     handleGetGradientColors();
@@ -110,52 +120,22 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
   }
 
   function handleHeatMapChange() {
+    if (isGrid) {
+      setIsGrid(false);
+    }
     updateLayerHeatmap(layerIndex, !isHeatmap);
     setIsHeatmap(!isHeatmap);
   }
 
   function handleRemoveLayer() {
-    const { [`circle-layer-${layerIndex}`]: _, ...remainingLayers } =
-      layerColors;
-    setGradientColorBasedOnZone([] as GradientColorBasedOnZone[]);
-    if (openDropdownIndices[1] == geoPoints.length - 1) {
-      updateDropdownIndex(1, null);
-    }
-    setIsRadiusMode(false);
+    setDeletedTimestamp(Date.now());
     removeLayer(layerIndex);
-    // Re-index the remaining layers (e.g., rename `circle-layer-x` to reflect new indices)
-    const reindexedLayers = Object.keys(remainingLayers).reduce(
-      (acc, key, index) => {
-        acc[`circle-layer-${index}`] = remainingLayers[key];
-        return acc;
-      },
-      {}
-    );
-    console.log(reindexedLayers);
-    setLayerColors(reindexedLayers);
-    // Re-index the `isAdvancedMode` state to reflect updated layer indices
-    if (layerIndex != undefined) {
-      setIsAdvancedMode((prevState) => {
-        const { [`circle-layer-${layerIndex}`]: _, ...remainingModes } =
-          prevState;
+    setShowRestorePrompt(true);
 
-        // Create a new re-indexed state for `isAdvancedMode`
-        const reindexedAdvancedMode = Object.keys(remainingModes).reduce(
-          (acc, key, index) => {
-            acc[`circle-layer-${index}`] = remainingModes[key];
-            return acc;
-          },
-          {}
-        );
-
-        return reindexedAdvancedMode;
-      });
-    }
-    if (openDropdownIndices[1] >= geoPoints.length - 1) {
-      updateDropdownIndex(1, geoPoints.length - 2);
-    }
-    setChosenPallet(null);
-    setRadiusInput(undefined);
+    // Auto-hide restore prompt after 5 seconds
+    setTimeout(() => {
+      setShowRestorePrompt(false);
+    }, 5000);
   }
 
   function toggleDropdown(event: ReactMouseEvent) {
@@ -185,6 +165,7 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
       setColors(res.data.data);
     } catch (error) {
       setIsError(error);
+      console.error('error fetching gradient colors', error);
     }
   }
 
@@ -197,14 +178,25 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
         layerIndex == 0
           ? geoPoints[0]?.prdcer_lyr_id
           : layerIndex == 1
-          ? geoPoints[1]?.prdcer_lyr_id
-          : "";
+            ? geoPoints[1]?.prdcer_lyr_id
+            : "";
       const change_lyr_id =
         layerIndex == 0
           ? geoPoints[1]?.prdcer_lyr_id
           : layerIndex == 1
-          ? geoPoints[0]?.prdcer_lyr_id
-          : "";
+            ? geoPoints[0]?.prdcer_lyr_id
+            : "";
+
+      const updatedLayer = {
+        ...geoPoints[layerIndex],
+        radius_meters: radiusInput || 1000,
+      };
+      setGeoPoints(prev => {
+        const updated = [...prev];
+        updated[layerIndex] = updatedLayer;
+        return updated;
+      });
+
       setReqGradientColorBasedOnZone({
         prdcer_lyr_id,
         user_id: authResponse?.localId,
@@ -218,6 +210,16 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
       setRadiusInput(undefined);
     }
   }
+
+  function handleGridChange() {
+    if (isHeatmap) {
+      updateLayerHeatmap(layerIndex, false);
+      setIsHeatmap(false);
+    }
+    updateLayerGrid(layerIndex, !isGrid);
+    setIsGrid(!isGrid);
+  }
+
   return (
     <div className="w-full">
       {!isOpen && (
@@ -239,12 +241,17 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
 
           <div className={"flex"}>
             <ColorSelect layerIndex={layerIndex} />
-            <input
-              type="checkbox"
-              checked={isDisplay}
-              onChange={handleDisplayChange}
-              className="appearance-none w-[11px] h-[11px] cursor-pointer border border-[#28a745] rounded-sm relative"
-            />
+            <div className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={isDisplay}
+                onChange={handleDisplayChange}
+                className="w-[11px] h-[11px] cursor-pointer accent-[#28a745]"
+              />
+              <p className="text-[11px] my-[2px] text-[#555] whitespace-nowrap">
+                Visible
+              </p>
+            </div>
           </div>
 
           <div
@@ -299,14 +306,14 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
                 className={`text-[11px] my-[2px] text-[#555] whitespace-nowrap block text-sm`}
                 htmlFor="radius"
               >
-                radius
+                Radius (m)
               </label>
               <input
                 id="radius"
-                type="text"
+                type="number"
                 name="radius"
                 className="bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-md focus:ring-grey-100 focus:border-grey-100 block w-full p-1"
-                value={radiusInput}
+                defaultValue={radiusInput}
                 onChange={(e) => setRadiusInput(+e.target.value)}
                 placeholder="Type radius and press Enter"
               />
@@ -319,18 +326,47 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
                 Apply
               </button>
             </div>
-            <div className="flex items-center gap-1 ms-2.5">
-              <input
-                type="checkbox"
-                checked={isHeatmap}
-                onChange={handleHeatMapChange}
-                className={`appearance-none w-[11px] h-[11px] cursor-pointer border border-[#28a745] rounded-sm relative text-sm`}
-              />
-              <p className="text-[11px] my-[2px] text-[#555] whitespace-nowrap">
-                Heatmap
-              </p>
+            <div className="flex flex-row gap-4 ms-2.5">
+              <div className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={isHeatmap}
+                  onChange={handleHeatMapChange}
+                  className="w-[11px] h-[11px] cursor-pointer accent-[#28a745]"
+                />
+                <p className="text-[11px] my-[2px] text-[#555] whitespace-nowrap">
+                  Heatmap
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={isGrid}
+                  onChange={handleGridChange}
+                  className="w-[11px] h-[11px] cursor-pointer accent-[#28a745]"
+                />
+                <p className="text-[11px] my-[2px] text-[#555] whitespace-nowrap">
+                  Grid
+                </p>
+              </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Add restore prompt */}
+      {showRestorePrompt && deletedTimestamp && (
+        <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded-lg p-4 flex items-center gap-4">
+          <span>Layer removed.</span>
+          <button
+            onClick={() => {
+              restoreLayer(deletedTimestamp);
+              setShowRestorePrompt(false);
+            }}
+            className="text-[#115740] hover:text-[#123f30] font-medium"
+          >
+            Undo
+          </button>
         </div>
       )}
     </div>
@@ -338,3 +374,4 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
 }
 
 export default MultipleLayersSetting;
+

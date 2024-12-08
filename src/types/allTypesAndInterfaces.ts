@@ -37,6 +37,7 @@ export interface UserLayer {
   layer_description: string;
   records_count: number;
   is_zone_lyr: boolean;
+  city_name?: string;
 }
 
 export interface CatalogueCardProps {
@@ -77,6 +78,7 @@ export interface CardItem {
   points_color?: string;
   legend?: string;
   lyrs?: { layer_id: string; points_color: string }[];
+  city_name?: string;
 }
 
 // Catalog Context Type
@@ -121,6 +123,7 @@ export interface CatalogContextType {
   updateLayerDisplay(layerIndex: number, display: boolean): void;
   // updateLayerZone(layerIndex: number, isZoneLayer: boolean): void;
   updateLayerHeatmap(layerIndex: number, isHeatmap: boolean): void;
+  updateLayerGrid: (layerIndex: number, isGrid: boolean) => void;
   removeLayer(layerIndex: number): void;
   saveResponse: SaveResponse | null;
   saveResponseMsg: string;
@@ -271,6 +274,8 @@ export interface LayerContextType {
   handleTypeToggle: (type: string) => void;
   validateFetchDatasetForm: () => true | Error;
   resetFetchDatasetForm(): void;
+  selectedCity: string;
+  setSelectedCity: (city: string) => void;
 }
 
 export interface ReqFetchDataset {
@@ -318,6 +323,9 @@ export interface BoxmapProperties {
   website: string;
   business_status: string;
   user_ratings_total: number | string;
+  priceLevel?: number;
+  heatmap_weight?: number;
+  [key: string]: any;
 }
 
 export interface Feature {
@@ -339,13 +347,19 @@ export interface FetchDatasetResponse {
   display?: boolean;
 }
 
+export type Bounds = [number, number, number, number]; // [west, south, east, north]
+
 export interface MapFeatures extends FetchDatasetResponse {
   prdcer_layer_name?: string;
   points_color?: string;
   layer_legend?: string;
   layer_description?: string;
   is_zone_lyr?: string;
+  city_name?: string;
   is_heatmap?: boolean;
+  is_grid?: boolean;
+  bounds?: Bounds;
+  basedon?: string;
   [key: string]: any;
 }
 
@@ -409,4 +423,14 @@ export interface CategoryData {
 export interface CostEstimate {
   cost: number;
   api_calls: number;
+}
+
+export interface CityBorders {
+  northeast: { lat: number; lng: number };
+  southwest: { lat: number; lng: number };
+}
+
+export interface CityData {
+  name: string;
+  borders: CityBorders;
 }
