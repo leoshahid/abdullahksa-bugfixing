@@ -83,7 +83,7 @@ export interface CardItem {
 
 // Catalog Context Type
 export interface CatalogContextType {
-  formStage: string;
+  formStage: "catalog" | "catalogDetails" | "save";
   saveMethod: string;
   isLoading: boolean;
   isError: Error | null;
@@ -92,9 +92,7 @@ export interface CatalogContextType {
   description: string;
   name: string;
   selectedContainerType: "Catalogue" | "Layer" | "Home";
-  setFormStage: React.Dispatch<
-    React.SetStateAction<"catalog" | "catalogDetails" | "save">
-  >;
+  setFormStage: React.Dispatch<React.SetStateAction<"catalog" | "catalogDetails" | "save">>;
   setSaveMethod: React.Dispatch<React.SetStateAction<string>>;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setIsError: React.Dispatch<React.SetStateAction<Error | null>>;
@@ -102,61 +100,50 @@ export interface CatalogContextType {
   setSubscriptionPrice: React.Dispatch<React.SetStateAction<string>>;
   setDescription: React.Dispatch<React.SetStateAction<string>>;
   setName: React.Dispatch<React.SetStateAction<string>>;
-  setSelectedContainerType: React.Dispatch<
-    React.SetStateAction<"Catalogue" | "Layer" | "Home">
-  >;
-  handleAddClick(
-    id: string,
-    name: string,
-    typeOfCard: string,
-    legend?: string,
-    layers?: { layer_id: string; points_color: string }[]
-  ): void;
-  handleSaveLayer(): void;
-  resetFormStage(resetTo: string): void;
+  setSelectedContainerType: React.Dispatch<React.SetStateAction<"Catalogue" | "Layer" | "Home">>;
+  handleAddClick: (id: string, name: string, typeOfCard: string, legend?: string, layers?: { layer_id: string; points_color: string }[]) => void;
+  handleSaveCatalog: () => Promise<void>;
+  resetFormStage: (resetTo: "catalog") => void;
   geoPoints: MapFeatures[];
   setGeoPoints: React.Dispatch<React.SetStateAction<MapFeatures[]>>;
-  selectedColor: Color | null;
-  setSelectedColor: React.Dispatch<React.SetStateAction<Color | null>>;
-  resetState(): void;
-  updateLayerColor(layerIndex: number | null, newColor: string): void;
-  updateLayerDisplay(layerIndex: number, display: boolean): void;
-  // updateLayerZone(layerIndex: number, isZoneLayer: boolean): void;
-  updateLayerHeatmap(layerIndex: number, isHeatmap: boolean): void;
-  updateLayerGrid: (layerIndex: number, isGrid: boolean) => void;
-  removeLayer(layerIndex: number): void;
+  selectedColor: { name: string; hex: string } | null;
+  setSelectedColor: React.Dispatch<React.SetStateAction<{ name: string; hex: string } | null>>;
+  resetState: () => void;
   saveResponse: SaveResponse | null;
   saveResponseMsg: string;
   saveReqId: string;
   setSaveResponse: React.Dispatch<React.SetStateAction<SaveResponse | null>>;
-  openDropdownIndices: (number | null)[];
-  setOpenDropdownIndices: React.Dispatch<
-    React.SetStateAction<(number | null)[]>
-  >;
-
-  isAdvanced: boolean;
-  setIsAdvanced: React.Dispatch<React.SetStateAction<boolean>>;
+  colors: string[][];
+  setColors: React.Dispatch<React.SetStateAction<string[][]>>;
+  chosenPallet: any;
+  setChosenPallet: React.Dispatch<React.SetStateAction<any>>;
   radiusInput: number | null;
   setRadiusInput: React.Dispatch<React.SetStateAction<number | null>>;
-  setColors: React.Dispatch<React.SetStateAction<string[]>>;
-  colors: string[];
-  reqGradientColorBasedOnZone: ReqGradientColorBasedOnZone;
-  setReqGradientColorBasedOnZone: React.Dispatch<
-    React.SetStateAction<ReqGradientColorBasedOnZone>
-  >;
   gradientColorBasedOnZone: GradientColorBasedOnZone[];
-  setGradientColorBasedOnZone: React.Dispatch<
-    React.Dispatch<React.SetStateAction<GradientColorBasedOnZone[]>>
-  >;
-  chosenPallet: number | null;
-  setChosenPallet: React.Dispatch<React.SetStateAction<number | null>>;
+  setGradientColorBasedOnZone: React.Dispatch<React.SetStateAction<GradientColorBasedOnZone[]>>;
+  handleColorBasedZone: () => Promise<void>;
+  visualizationMode: VisualizationMode;
+  setVisualizationMode: React.Dispatch<React.SetStateAction<VisualizationMode>>;
+  updateLayerColor: (layerId: number, newColor: string) => void;
+  updateLayerDisplay: (layerIndex: number, display: boolean) => void;
+  updateLayerHeatmap: (layerIndex: number, isHeatmap: boolean) => void;
+  removeLayer: (layerIndex: number) => void;
+  isAdvanced: boolean;
+  setIsAdvanced: React.Dispatch<React.SetStateAction<boolean>>;
+  isAdvancedMode: Record<string, any>;
+  setIsAdvancedMode: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  openDropdownIndices: (number | null)[];
+  setOpenDropdownIndices: React.Dispatch<React.SetStateAction<(number | null)[]>>;
+  updateDropdownIndex: (index: number, value: number | null) => void;
   selectedBasedon: string;
   setSelectedBasedon: React.Dispatch<React.SetStateAction<string>>;
-
-  layersColor: {};
-  setLayersColor: React.Dispatch<React.SetStateAction<{}>>;
-  isAdvancedMode: {};
-  setIsAdvancedMode: React.Dispatch<React.SetStateAction<{}>>;
+  layerColors: Record<string, any>;
+  setLayerColors: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  isRadiusMode: boolean;
+  setIsRadiusMode: React.Dispatch<React.SetStateAction<boolean>>;
+  updateLayerGrid: (layerIndex: number, isGrid: boolean) => void;
+  deletedLayers: Array<{ layer: MapFeatures; index: number; timestamp: number }>;
+  restoreLayer: (timestamp: number) => void;
 }
 
 export interface GradientColorBasedOnZone extends MapFeatures {
@@ -197,6 +184,17 @@ export interface RequestType {
   id: string;
   requestMessage: string;
   error: Error | null;
+}
+
+export interface LayerState {
+  selectedColor: Color | null;
+  saveResponse: SaveResponse | null;
+  isLoading: boolean;
+  datasetInfo: {
+    bknd_dataset_id: string;
+    prdcer_lyr_id: string;
+  } | null;
+  customName?: string;
 }
 
 export interface LayerContextType {
@@ -276,11 +274,32 @@ export interface LayerContextType {
   resetFetchDatasetForm(): void;
   selectedCity: string;
   setSelectedCity: (city: string) => void;
+
+  currentLayerGroup: LayerGroup | null;
+  setCurrentLayerGroup: React.Dispatch<React.SetStateAction<LayerGroup | null>>;
+
+  addLayerToGroup(groupId: string, layer: Layer): void;
+  removeLayerFromGroup(groupId: string, layerId: number): void;
+  updateLayerInGroup(groupId: string, layerId: number, updates: Partial<Layer>): void;
+
+  selectedCountry: string;
+  setSelectedCountry: React.Dispatch<React.SetStateAction<string>>;
+
+  layerStates: { [layerId: number]: LayerState };
+  updateLayerState: (layerId: number, updates: Partial<LayerState>) => void;
 }
 
 export interface ReqFetchDataset {
   selectedCountry: string;
   selectedCity: string;
+  layers: {
+    name: string;
+    points_color: string;
+    id: number;
+    includedTypes: string[];
+    excludedTypes: string[];
+    layer_name?: string;
+  }[];
   includedTypes: string[];
   excludedTypes: string[];
 }
@@ -360,6 +379,8 @@ export interface MapFeatures extends FetchDatasetResponse {
   is_grid?: boolean;
   bounds?: Bounds;
   basedon: string;
+  layerGroupId?: string;
+  layerId?: number;
   [key: string]: any;
 }
 
@@ -434,3 +455,54 @@ export interface CityData {
   name: string;
   borders: CityBorders;
 }
+
+export interface Layer {
+  id: number;
+  name: string;
+  layer_name?: string;
+  includedTypes: string[];
+  excludedTypes: string[];
+  display?: boolean;
+  points_color?: string;
+  is_heatmap?: boolean;
+  is_grid?: boolean;
+  basedon?: string;
+  layer_legend?: string;
+  layer_description?: string;
+  prdcer_lyr_id?: string;
+}
+
+export interface LayerGroup {
+  id: string;
+  name: string;
+  layers: Layer[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LayerSettings {
+  display: boolean;
+  points_color: string;
+  is_heatmap: boolean;
+  is_grid: boolean;
+  basedon?: string;
+}
+
+export interface LayerDataMap {
+  [layerId: number]: FetchDatasetResponse;
+}
+
+export interface LayerCustomization {
+  name: string;
+  legend: string;
+  description: string;
+  color: string;
+  layerId: number;
+}
+
+// Update ReqSaveLayer interface
+export interface ReqSaveLayer {
+  layers: LayerCustomization[];
+}
+
+export type VisualizationMode = 'vertex' | 'heatmap' | 'grid';

@@ -18,6 +18,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import apiRequest from "../services/apiRequest";
+import html2canvas from "html2canvas";
 
 const CatalogContext = createContext<CatalogContextType | undefined>(undefined);
 
@@ -206,60 +207,90 @@ export function CatalogProvider(props: { children: ReactNode }) {
     fetchGeoPoints(id, typeOfCard);
   }
 
-  async function handleSaveLayer() {
+  async function generateThumbnail(): Promise<string> {
+    const mapContainer = document.getElementById('map-container');
+    if (!mapContainer) {
+      console.warn('Map container not found');
+      return '';
+    }
+
+    try {
+      const canvas = await html2canvas(mapContainer);
+      const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      return thumbnailDataUrl;
+    } catch (error) {
+      console.error('Error generating thumbnail:', error);
+      return '';
+    }
+  }
+
+  async function handleSaveCatalog() {
     if (!authResponse || !("idToken" in authResponse)) {
       setIsError(new Error("User is not authenticated!"));
       navigate("/auth");
       return;
     }
-    const layersData = Array.isArray(geoPoints)
-      ? geoPoints.map((layer) => ({
-          layer_id: layer.prdcer_lyr_id,
-          points_color: layer.points_color,
-        }))
-      : [];
 
-    const requestBody = {
-      prdcer_ctlg_name: name,
-      subscription_price: subscriptionPrice,
-      ctlg_description: description,
-      total_records: 0,
-      lyrs: layersData,
-      user_id: authResponse.localId,
-      thumbnail_url: "",
-    };
-
-    // HttpReq(
-    //   urls.save_producer_catalog,
-    //   setSaveResponse,
-    //   setSaveResponseMsg,
-    //   setSaveReqId,
-    //   setIsLoading,
-    //   setIsError,
-    //   "post",
-    //   requestBody,
-    //   authResponse.idToken
-    // );
     try {
       setIsLoading(true);
+      
+      const thumbnailDataUrl = await generateThumbnail();
+
+      const formData = new FormData();
+
+      if (thumbnailDataUrl) {
+        const thumbnailBlob = await fetch(thumbnailDataUrl).then(r => r.blob());
+        formData.append('image', thumbnailBlob, 'thumbnail.jpg');
+      }
+
+      const requestBody = {
+        message: "Save catalog request",
+        request_info: {},
+        request_body: {
+          prdcer_ctlg_name: name,
+          subscription_price: subscriptionPrice,
+          ctlg_description: description,
+          total_records: 0,
+          lyrs: geoPoints.map(layer => ({
+            layer_id: layer.prdcer_lyr_id,
+            points_color: layer.points_color
+          })),
+          user_id: authResponse.localId,
+          display_elements: geoPoints.map(layer => ({
+            layer_id: layer.layerId,
+            display: layer.display,
+            points_color: layer.points_color,
+            is_heatmap: layer.is_heatmap,
+            is_grid: layer.is_grid
+          })),
+          catalog_layer_options: geoPoints.map(layer => ({
+            layer_id: layer.layerId,
+            is_enabled: layer.is_enabled || true,
+            opacity: layer.opacity || 1
+          }))
+        }
+      };
+
+      formData.append('req', JSON.stringify(requestBody));
+
       const res = await apiRequest({
         url: urls.save_producer_catalog,
         method: "post",
-        body: requestBody,
+        body: formData,
         isAuthRequest: true,
+        isFormData: true,
       });
+
       setSaveResponse(res.data.data);
       setSaveResponseMsg(res.data.message);
       setSaveReqId(res.data.id);
+      setFormStage("catalog");
+      resetState();
     } catch (error) {
-      setIsError(error);
+      setIsError(error instanceof Error ? error : new Error('Failed to save catalog'));
     } finally {
       setIsLoading(false);
     }
-
-    setTimeout(() => {
-      resetFormStage("catalog");
-    }, 1000);
   }
 
   function resetFormStage(resetTo: "catalog") {
@@ -279,21 +310,19 @@ export function CatalogProvider(props: { children: ReactNode }) {
     localStorage.removeItem("unsavedGeoPoints");
   }
 
-  function updateLayerColor(layerIndex: number | null, newColor: string) {
-    setGeoPoints(function (prevGeoPoints) {
-      const updatedGeoPoints = prevGeoPoints.map(function (geoPoint, index) {
-        if (layerIndex === null || layerIndex === index) {
-          return Object.assign({}, geoPoint, {
-            points_color:
-              typeof newColor === "string"
-                ? newColor.toLowerCase()
-                : geoPoint.points_color,
-          });
+  function updateLayerColor(layerId: number, newColor: string) {
+    setGeoPoints(prevPoints => 
+      prevPoints.map(point => {
+        if (point.layerId === layerId) {
+          return {
+            ...point,
+            points_color: newColor,
+            display: point.display ?? true
+          };
         }
-        return geoPoint;
-      });
-      return updatedGeoPoints;
-    });
+        return point;
+      })
+    );
   }
 
   function updateLayerDisplay(layerIndex: number, display: boolean) {
@@ -315,14 +344,16 @@ export function CatalogProvider(props: { children: ReactNode }) {
 
   function removeLayer(layerIndex: number) {
     setGeoPoints(function (prevGeoPoints) {
-      const removedLayer = prevGeoPoints[layerIndex];
       // Store the deleted layer with its metadata
+      const removedLayer = prevGeoPoints[layerIndex];
       setDeletedLayers(prev => [...prev, {
         layer: removedLayer,
         index: layerIndex,
         timestamp: Date.now()
       }]);
-      return prevGeoPoints.filter((_, index) => index !== layerIndex);
+      
+      // Filter out the layer with the matching layerId
+      return prevGeoPoints.filter(point => point.layerId !== layerIndex);
     });
   }
 
@@ -447,7 +478,7 @@ export function CatalogProvider(props: { children: ReactNode }) {
         setDescription,
         setName,
         handleAddClick,
-        handleSaveLayer,
+        handleSaveCatalog,
         resetFormStage,
         selectedContainerType,
         setSelectedContainerType,
@@ -492,6 +523,8 @@ export function CatalogProvider(props: { children: ReactNode }) {
         updateLayerGrid,
         deletedLayers,
         restoreLayer,
+        visualizationMode,
+        setVisualizationMode,
       }}
     >
       {children}
