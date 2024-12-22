@@ -44,6 +44,8 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
     setIsAdvancedMode,
     setIsRadiusMode,
     updateLayerGrid,
+    updateLayerColor,
+    resetState,
   } = useCatalogContext();
   const layer = geoPoints[layerIndex];
   console.log(layer);
@@ -140,14 +142,32 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
   }
 
   function handleRemoveLayer() {
-    setDeletedTimestamp(Date.now());
-    removeLayer(layerIndex);
-    setShowRestorePrompt(true);
+    // Reset advanced mode only for this layer
+    setIsAdvancedMode(prev => {
+      const newMode = { ...prev };
+      delete newMode[`circle-layer-${layerIndex}`];
+      return newMode;
+    });
 
-    // Auto-hide restore prompt after 5 seconds
-    setTimeout(() => {
-      setShowRestorePrompt(false);
-    }, 5000);
+    // Remove this layer from gradient colors
+    setGradientColorBasedOnZone(prev => 
+      prev.filter(item => item.layerId !== layerIndex)
+    );
+
+    // Remove this layer from geoPoints
+    setGeoPoints(prev => prev.filter((_, index) => index !== layerIndex));
+
+    // Remove this layer's color
+    setLayerColors(prev => {
+      const newColors = { ...prev };
+      delete newColors[layerIndex];
+      return newColors;
+    });
+
+    // Reset chosen pallet only if it was this layer
+    if (chosenPallet === layerIndex) {
+      setChosenPallet(null);
+    }
   }
 
   function toggleDropdown(event: ReactMouseEvent) {
@@ -242,6 +262,43 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
     }, 300);
   }
 
+  const handleColorChange = (color: string) => {
+    
+    if (layerIndex !== undefined) {
+      // Update layerColors state
+      setLayerColors(prev => ({
+        ...prev, 
+        [layerIndex]: color
+      }));
+      
+      // Update geoPoints to change the map
+      setGeoPoints(prev => {
+        const updated = [...prev];
+        updated[layerIndex] = {
+          ...updated[layerIndex],
+          points_color: color
+        };
+        return updated;
+      });
+      
+      // Update map color
+      updateLayerColor(layerIndex, color);
+    }
+  };
+
+  useEffect(() => {
+  }, [layerColors]);
+
+  useEffect(() => {
+    const initialColor = layer?.points_color;
+    if (initialColor && !layerColors[layerIndex]) {
+      setLayerColors(prev => ({
+        ...prev,
+        [layerIndex]: initialColor
+      }));
+    }
+  }, [layer, layerIndex, layerColors]);
+
   return (
     <div className="w-full">
       {!isOpen && (
@@ -257,12 +314,13 @@ function MultipleLayersSetting(props: MultipleLayersSettingProps) {
             <FaTrash />
           </button>
 
-          <div className="font-bold text-[#333] w-[105px]">
-            <span className="text-sm text-[#333]">{prdcer_layer_name}</span>
+          <div className="font-bold text-[#333] w-[105px] overflow-hidden">
+            <span className="text-sm text-[#333] block truncate" title={prdcer_layer_name}>
+              {prdcer_layer_name}
+            </span>
           </div>
-
-          <div className={"flex"}>
-            <ColorSelect layerIndex={layerIndex} />
+          <div className="flex">
+            <ColorSelect layerId={layerIndex} onColorChange={handleColorChange} />
             <div className="flex items-center gap-1">
               <input
                 type="checkbox"

@@ -1,4 +1,4 @@
-import React, { useEffect, MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, MouseEvent as ReactMouseEvent } from "react";
 import styles from "./ColorSelect.module.css";
 import { useCatalogContext } from "../../context/CatalogContext";
 import { useLayerContext } from "../../context/LayerContext";
@@ -35,6 +35,7 @@ function ColorSelect({ layerId, onColorChange }: ColorSelectProps) {
     setIsRadiusMode,
     isAdvancedMode,
     setChosenPallet,
+    layerColors,
   } = catalogContext;
 
   const layerState = layerStates?.[layerId] || {
@@ -49,33 +50,31 @@ function ColorSelect({ layerId, onColorChange }: ColorSelectProps) {
   const isOpen = openDropdownIndices[0] === dropdownIndex;
 
   useEffect(() => {
-    setSelectedColor(null);
-  }, []);
+    const initialColor = geoPoints[layerId]?.points_color || layerColors[layerId];
+    if (initialColor) {
+      updateLayerState(layerId, {
+        selectedColor: {
+          name: colorMap.get(initialColor) || '',
+          hex: initialColor
+        }
+      });
+    }
+  }, [layerId, geoPoints, layerColors]);
 
   function handleOptionClick(
     optionName: string,
     hex: string,
     event: ReactMouseEvent
   ) {
+    
     event.stopPropagation();
-    if (showLoaderTopup) {
-      return;
-    }
+    if (showLoaderTopup) return;
     
-    // Update layer color in catalog context
-    updateLayerColor(layerId, hex);
-    
-    // Update layer state
     updateLayerState(layerId, { 
       selectedColor: { name: optionName, hex } 
     });
     
-    // Notify parent component
     onColorChange(hex);
-    
-    // Close dropdown
-    updateDropdownIndex(0, null);
-    setChosenPallet(null);
   }
 
   function toggleDropdown(event: ReactMouseEvent) {
@@ -111,6 +110,13 @@ function ColorSelect({ layerId, onColorChange }: ColorSelectProps) {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [updateDropdownIndex]);
+
+  // Add effect to track color changes
+  useEffect(() => {
+  }, [layerState, colorHex, layerId]);
+
+  useEffect(() => {
+  }, [layerState, colorHex]);
 
   function renderOptions() {
     return colorOptions.map(({ name, hex }) => {
@@ -171,5 +177,6 @@ function ColorSelect({ layerId, onColorChange }: ColorSelectProps) {
     </div>
   );
 }
+
 
 export default ColorSelect;
