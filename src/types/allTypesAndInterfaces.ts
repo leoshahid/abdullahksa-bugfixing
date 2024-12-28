@@ -144,6 +144,8 @@ export interface CatalogContextType {
   updateLayerGrid: (layerIndex: number, isGrid: boolean) => void;
   deletedLayers: Array<{ layer: MapFeatures; index: number; timestamp: number }>;
   restoreLayer: (timestamp: number) => void;
+  basedOnLayerId: string | null;
+  setBasedOnLayerId: (id: string) => void;
 }
 
 export interface GradientColorBasedOnZone extends MapFeatures {
@@ -152,12 +154,12 @@ export interface GradientColorBasedOnZone extends MapFeatures {
 }
 
 export interface ReqGradientColorBasedOnZone {
-  prdcer_lyr_id: string;
-  user_id: string;
   color_grid_choice: string[];
   change_lyr_id: string;
+  change_lyr_name: string;
   based_on_lyr_id: string;
-  radius_offset: number;
+  based_on_lyr_name: string;
+  offset_value: number;
   color_based_on: string;
 }
 
@@ -381,6 +383,9 @@ export interface MapFeatures extends FetchDatasetResponse {
   basedon: string;
   layerGroupId?: string;
   layerId?: number;
+  gradient_groups?: GradientGroup[];
+  is_gradient?: boolean;
+  gradient_based_on?: string;
   [key: string]: any;
 }
 
@@ -506,3 +511,16 @@ export interface ReqSaveLayer {
 }
 
 export type VisualizationMode = 'vertex' | 'heatmap' | 'grid';
+
+export interface GradientGroup {
+  color: string;
+  legend: string;
+  count: number;
+}
+
+
+export const DisplayType = {
+  REGULAR: 'regular',
+  HEATMAP: 'heatmap',
+  GRID: 'grid'
+} as const;
