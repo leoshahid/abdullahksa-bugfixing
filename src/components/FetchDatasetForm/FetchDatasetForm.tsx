@@ -5,6 +5,7 @@ import {
   getDefaultLayerColor,
 } from '../../utils/helperFunctions';
 import { PiX } from 'react-icons/pi';
+import { FaSearch } from 'react-icons/fa';
 import urls from '../../urls.json';
 import { CategoryData, City, Layer } from '../../types/allTypesAndInterfaces';
 import { useLayerContext } from '../../context/LayerContext';
@@ -489,14 +490,29 @@ const FetchDatasetForm = () => {
           >
             {/* Map through layers to create multiple Layer sections */}
             {layers.map((layer, index) => (
-              <LayerDisplaySubCategories
-                key={layer.id}
-                layer={layer}
-                layerIndex={index}
-                onRemoveType={(type: string) => removeTypeFromLayer(type, layer.id, false)}
-                onToggleTypeInLayer={(type: string) => toggleTypeInLayer(type, layer.id, false)}
-                onNameChange={handleLayerNameChange}
-              />
+              <div key={layer.id}>
+                <LayerDisplaySubCategories
+                  layer={layer}
+                  layerIndex={index}
+                  onRemoveType={(type: string) => removeTypeFromLayer(type, layer.id, false)}
+                  onToggleTypeInLayer={(type: string) => toggleTypeInLayer(type, layer.id, false)}
+                  onNameChange={handleLayerNameChange}
+                />
+                {/* Progress bar for each layer */}
+                <div className="mt-2 mb-3">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className="bg-green-600 h-2.5 rounded-full transition-all duration-300 ease-in-out"
+                      style={{
+                        width: `${useLayerContext().propsFetchingProgress[layer.id] || 0}%`,
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-right mt-1 text-gray-500">
+                    {useLayerContext().propsFetchingProgress[layer.id] || 0}% complete
+                  </div>
+                </div>
+              </div>
             ))}
 
             {/* Add default empty layer section */}
@@ -716,8 +732,16 @@ const FetchDatasetForm = () => {
             onClick={e => handleButtonClick('sample', e)}
             className="w-full h-10 bg-slate-100 border-2 border-[#115740] text-[#115740] flex justify-center items-center font-semibold rounded-lg
                  hover:bg-white transition-all cursor-pointer"
+            disabled={useLayerContext().showLoaderTopup}
           >
-            Get Sample
+            {useLayerContext().showLoaderTopup ? (
+              <div className="flex items-center">
+                <FaSearch className="animate-spin mr-2" />
+                <span>Loading...</span>
+              </div>
+            ) : (
+              'Get Sample'
+            )}
           </button>
 
           <button
@@ -731,18 +755,18 @@ const FetchDatasetForm = () => {
               if (res.data.data.length === 0) nav('/profile/payment-methods');
               if (!isAuthenticated) nav('/auth');
               try {
+
+                await apiRequest({
+                  url: urls.deduct_wallet,
+                  method: 'Post',
+                  body: {
+                    user_id: authResponse?.localId,
+                    amount: costEstimate * 100,
+                  },
+                });
                 handleButtonClick('full data', e);
-                // if (!error) {
-                //   console.log('----money');
-                //   await apiRequest({
-                //     url: urls.deduct_wallet,
-                //     method: 'Post',
-                //     body: {
-                //       user_id: authResponse?.localId,
-                //       amount: costEstimate * 100,
-                //     },
-                //   });
-                // }
+
+    
               } catch (error: any) {
                 if (error.response.data.detail === 'Insufficient balance in wallet') {
                   setShowErrorMessage(true);
@@ -750,8 +774,16 @@ const FetchDatasetForm = () => {
                 console.error(error);
               }
             }}
+            disabled={useLayerContext().showLoaderTopup}
           >
-            Full Data {isPriceVisible ? `($${costEstimate.toFixed(2)})` : null}
+            {useLayerContext().showLoaderTopup ? (
+              <div className="flex items-center">
+                <FaSearch className="animate-spin mr-2" />
+                <span>Loading...</span>
+              </div>
+            ) : (
+              <>Full Data {isPriceVisible ? `($${costEstimate.toFixed(2)})` : null}</>
+            )}
           </button>
         </div>
       </div>

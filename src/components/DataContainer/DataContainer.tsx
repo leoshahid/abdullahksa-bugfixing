@@ -9,15 +9,19 @@ import { MapFeatures } from '../../types/allTypesAndInterfaces';
 import UserLayerCard from '../UserLayerCard/UserLayerCard';
 import userIdData from '../../currentUserId.json';
 import { isValidColor } from '../../utils/helperFunctions';
-import { useAuth } from '../../context/AuthContext'; // Add this import
+import { useAuth } from '../../context/AuthContext';
+import { hasAuthCredentials } from '../../guards';
 import { useNavigate } from 'react-router-dom';
 import { useUIContext } from '../../context/UIContext';
 import apiRequest from '../../services/apiRequest';
 import { useLayerContext } from '../../context/LayerContext';
 
+// Constants
+const DEFAULT_PROGRESS_VALUE = 89;
+
 function DataContainer() {
   const { selectedContainerType, handleAddClick, setGeoPoints } = useCatalogContext();
-  const {setSelectedCity, setSelectedCountry} = useLayerContext();
+  const { setSelectedCity, setSelectedCountry } = useLayerContext();
   const { isAuthenticated, authResponse, logout } = useAuth();
   const { closeModal } = useUIContext();
   const [activeTab, setActiveTab] = useState('Data Catalogue');
@@ -41,14 +45,6 @@ function DataContainer() {
     // Fetch catalog collection data
     async function fetchCatalogCollection() {
       setLoading(true);
-      // HttpReq<Catalog[]>(
-      //   urls.catlog_collection,
-      //   setCatalogCollectionData,
-      //   setResMessage,
-      //   setResId,
-      //   setLoading,
-      //   setError
-      // );
       try {
         const res = await apiRequest({
           url: urls.catlog_collection,
@@ -58,7 +54,11 @@ function DataContainer() {
         setResMessage(res.data.message);
         setResId(res.data.request_id);
       } catch (error) {
-        setError(error);
+        if (error instanceof Error) {
+          setError(error);
+        } else {
+          setError(new Error(String(error)));
+        }
       } finally {
         setLoading(false);
       }
@@ -67,18 +67,7 @@ function DataContainer() {
     async function fetchUserLayers() {
       setLoading(true);
 
-      const body = { user_id: authResponse?.localId };
-      // HttpReq<UserLayer[]>(
-      //   urls.user_layers,
-      //   setUserLayersData,
-      //   setResMessage,
-      //   setResId,
-      //   setLoading,
-      //   setError,
-      //   "post",
-      //   body,
-      //   authResponse.idToken // Add this line
-      // );
+      const body = { user_id: hasAuthCredentials(authResponse) ? authResponse.localId : undefined };
       try {
         const res = await apiRequest({
           url: urls.user_layers,
@@ -90,7 +79,11 @@ function DataContainer() {
         setResMessage(res.data.message);
         setResId(res.data.request_id);
       } catch (error) {
-        setError(error);
+        if (error instanceof Error) {
+          setError(error);
+        } else {
+          setError(new Error(String(error)));
+        }
       } finally {
         setLoading(false);
       }
@@ -99,18 +92,7 @@ function DataContainer() {
     async function fetchUserCatalogs() {
       setLoading(true);
 
-      const body = { user_id: authResponse?.localId };
-      // HttpReq<Catalog[]>(
-      //   urls.user_catalogs,
-      //   setUserCatalogsData,
-      //   setResMessage,
-      //   setResId,
-      //   setLoading,
-      //   setError,
-      //   "post",
-      //   body,
-      //   authResponse.idToken // Add this line
-      // );
+      const body = { user_id: hasAuthCredentials(authResponse) ? authResponse.localId : undefined };
       try {
         const res = await apiRequest({
           url: urls.user_catalogs,
@@ -122,7 +104,11 @@ function DataContainer() {
         setResMessage(res.data.message);
         setResId(res.data.request_id);
       } catch (error) {
-        setError(error);
+        if (error instanceof Error) {
+          setError(error);
+        } else {
+          setError(new Error(String(error)));
+        }
       } finally {
         setLoading(false);
       }
@@ -172,16 +158,6 @@ function DataContainer() {
   // Handle click event on catalog card
   async function handleCatalogCardClick(selectedItem: CardItem) {
     if (selectedContainerType === 'Home') {
-      // HttpReq<MapFeatures[]>(
-      //   urls.http_catlog_data,
-      //   setGeoPoints,
-      //   setWsResMessage,
-      //   setWsResId,
-      //   setWsResLoading,
-      //   setWsResError,
-      //   "post",
-      //   { catalogue_dataset_id: selectedItem.id }
-      // );
       setWsResLoading(true);
       try {
         const res = await apiRequest({
@@ -193,30 +169,45 @@ function DataContainer() {
         setWsResMessage(res.data.message);
         setWsResId(res.data.request_id);
       } catch (error) {
-        setWsResError(error);
+        if (error instanceof Error) {
+          setWsResError(error);
+        } else {
+          setWsResError(new Error(String(error)));
+        }
       } finally {
         setWsResLoading(false);
       }
     }
 
     if (selectedContainerType !== 'Home') {
-      handleAddClick(
-        selectedItem.id,
-        selectedItem.typeOfCard,
-        (country:string, city:string)=>{
-          setSelectedCountry(country);
-          setSelectedCity(city);
-        }
-      );
+      handleAddClick(selectedItem.id, selectedItem.typeOfCard, (country: string, city: string) => {
+        setSelectedCountry(country);
+        setSelectedCity(city);
+      });
     }
 
     closeModal();
   }
 
+  // Get the progress setting function from LayerContext
+  const { propsSetFetchingProgress } = useLayerContext();
+
   // Render a card based on the item type
   function makeCard(item: Catalog | UserLayer, index: number) {
     if ('prdcer_lyr_id' in item) {
       // Render UserLayerCard if item is a user layer
+      // Add progress property with default value if not provided
+      const progress = (item as any).progress || DEFAULT_PROGRESS_VALUE;
+
+      // Store the progress in LayerContext for use in CustomizeLayer component
+      const layerId = parseInt(item.prdcer_lyr_id);
+      if (!isNaN(layerId)) {
+        propsSetFetchingProgress(prev => ({
+          ...prev,
+          [layerId]: progress,
+        }));
+      }
+
       return (
         <UserLayerCard
           key={item.prdcer_lyr_id + '-' + index} // Use a combination of id and index
@@ -226,6 +217,7 @@ function DataContainer() {
           legend={item.layer_legend}
           typeOfCard="layer"
           points_color={item.points_color}
+          progress={progress}
           onMoreInfo={function () {
             handleCatalogCardClick({
               id: item.prdcer_lyr_id,

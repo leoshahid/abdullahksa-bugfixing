@@ -20,10 +20,14 @@ import {
   LayerCustomization,
   LayerState,
   MapFeatures,
+  Feature,
+  LayerGroup,
+  Layer,
 } from '../types/allTypesAndInterfaces';
 import urls from '../urls.json';
 import { useCatalogContext } from './CatalogContext';
 import { useAuth } from '../context/AuthContext';
+import { hasAuthCredentials } from '../guards';
 import { useNavigate } from 'react-router-dom';
 import { processCityData, getDefaultLayerColor, colorOptions } from '../utils/helperFunctions';
 import apiRequest from '../services/apiRequest';
@@ -51,6 +55,8 @@ const getFakeData = async (zoomLevel: number) => {
 const LayerContext = createContext<LayerContextType | undefined>(undefined);
 
 export function LayerProvider(props: { children: ReactNode }) {
+  const [fetchingProgress, setFetchingProgress] = useState<{ [layerId: number]: number }>({});
+  // console.log(fetchingProgress, 'bdsdhksdk');
   const navigate = useNavigate();
   const { authResponse } = useAuth();
   const { children } = props;
@@ -134,7 +140,9 @@ export function LayerProvider(props: { children: ReactNode }) {
     }
   }
 
-  async function handleSaveLayer(layerData: LayerCustomization | { layers: LayerCustomization[] }) {
+  async function handleSaveLayer(
+    layerData: LayerCustomization | { layers: LayerCustomization[] }
+  ): Promise<void> {
     if ('layers' in layerData) {
       // Handle multiple layers
       for (const layer of layerData.layers) {
@@ -155,7 +163,7 @@ export function LayerProvider(props: { children: ReactNode }) {
       layer_legend: layerData.legend,
       layer_description: layerData.description,
       city_name: reqFetchDataset.selectedCity,
-      user_id: authResponse?.localId,
+      user_id: hasAuthCredentials(authResponse) ? authResponse.localId : undefined,
     };
 
     try {
@@ -202,7 +210,7 @@ export function LayerProvider(props: { children: ReactNode }) {
         type: 'FeatureCollection',
         features: [
           ...(existingPoint?.features || []), // Keep existing features if any
-          ...response.features.map(f => ({
+          ...response.features.map((f: Feature) => ({
             type: 'Feature',
             geometry: f.geometry,
             properties: f.properties,
@@ -219,7 +227,9 @@ export function LayerProvider(props: { children: ReactNode }) {
         bknd_dataset_id: response.bknd_dataset_id,
       };
 
-      const filteredPoints = prevPoints.filter(p => String(p.layerId) !== String(layerId));
+      const filteredPoints = prevPoints.filter(
+        (p: MapFeatures) => String(p.layerId) !== String(layerId)
+      );
       const newPoints = [...filteredPoints, newPoint];
 
       if (response.next_page_token) {
@@ -227,6 +237,11 @@ export function LayerProvider(props: { children: ReactNode }) {
           console.error(`Error fetching page for layer ${layerId}:`, err);
         });
       } else {
+        // No more pages to fetch, set progress to 100%
+        setFetchingProgress(prev => ({
+          ...prev,
+          [layerId]: 100,
+        }));
         delete pageCountsRef.current[layerKey];
       }
 
@@ -234,14 +249,20 @@ export function LayerProvider(props: { children: ReactNode }) {
     });
   }
   //To be removed after fixed on backend
-  function assignPopularityCategory(json: any): void {
+  function assignPopularityCategory(json: {
+    features: Array<{
+      properties: { popularity_score: number; popularity_score_category?: string };
+    }>;
+  }): void {
     let features = json.features;
 
     // Extract popularity scores
-    let scores = features.map(f => f.properties.popularity_score);
+    let scores = features.map(
+      (f: { properties: { popularity_score: number } }) => f.properties.popularity_score
+    );
 
     // Compute percentiles
-    scores.sort((a, b) => b - a);
+    scores.sort((a: number, b: number) => b - a);
     let quartile = Math.ceil(scores.length / 4);
 
     let thresholds = {
@@ -251,20 +272,24 @@ export function LayerProvider(props: { children: ReactNode }) {
     };
 
     // Assign categories
-    features.forEach(feature => {
-      if (!feature.properties.popularity_score_category) {
-        let score = feature.properties.popularity_score;
-        if (score >= thresholds.very_high) {
-          feature.properties.popularity_score_category = 'very high';
-        } else if (score >= thresholds.high) {
-          feature.properties.popularity_score_category = 'high';
-        } else if (score >= thresholds.mid) {
-          feature.properties.popularity_score_category = 'mid';
-        } else {
-          feature.properties.popularity_score_category = 'low';
+    features.forEach(
+      (feature: {
+        properties: { popularity_score: number; popularity_score_category?: string };
+      }) => {
+        if (!feature.properties.popularity_score_category) {
+          let score = feature.properties.popularity_score;
+          if (score >= thresholds.very_high) {
+            feature.properties.popularity_score_category = 'very high';
+          } else if (score >= thresholds.high) {
+            feature.properties.popularity_score_category = 'high';
+          } else if (score >= thresholds.mid) {
+            feature.properties.popularity_score_category = 'mid';
+          } else {
+            feature.properties.popularity_score_category = 'low';
+          }
         }
       }
-    });
+    );
   }
 
   async function handleFetchDataset(action: string, pageToken?: string, layerId?: number) {
@@ -277,7 +302,7 @@ export function LayerProvider(props: { children: ReactNode }) {
     let idToken: string;
 
     try {
-      if (authResponse && 'idToken' in authResponse) {
+      if (hasAuthCredentials(authResponse)) {
         user_id = authResponse.localId;
         idToken = authResponse.idToken;
       } else if (action == 'full data') {
@@ -297,7 +322,9 @@ export function LayerProvider(props: { children: ReactNode }) {
         ...prev,
         action: action,
       }));
+
       if (searchType !== 'keyword_search') {
+        // Handle category search
         for (const layer of layers) {
           try {
             if (!layer) continue;
@@ -334,12 +361,38 @@ export function LayerProvider(props: { children: ReactNode }) {
               },
               isAuthRequest: true,
             });
+
             if (res?.data?.data) {
-              await assignPopularityCategory(res?.data?.data); //To be removed after fixed on backend
+              // Update progress bar for the current layer
+              if (res.data.data.progress) {
+                setFetchingProgress(prev => ({
+                  ...prev,
+                  [layer.id]: res.data.data.progress || 0,
+                }));
+              }
+
+              // Handle delay before next call
+              if (res.data.delay_before_next_call) {
+                console.log(
+                  `Waiting for ${res.data.delay_before_next_call} seconds before next call...`
+                );
+                await new Promise(resolve =>
+                  setTimeout(resolve, res.data.delay_before_next_call * 1000)
+                );
+              }
+
               setLayerDataMap(prev => ({
                 ...prev,
                 [layer.id]: res.data.data,
               }));
+
+              // If there's no next_page_token, set progress to 100%
+              if (!res.data.data.next_page_token) {
+                setFetchingProgress(prev => ({
+                  ...prev,
+                  [layer.id]: 100,
+                }));
+              }
 
               updateGeoJSONDataset(res.data.data, layer.id, defaultName);
             }
@@ -349,45 +402,76 @@ export function LayerProvider(props: { children: ReactNode }) {
           }
         }
       } else {
-        let defaultName = `${reqFetchDataset.selectedCountry} ${reqFetchDataset.selectedCity} ${textSearchInput?.trim()}`;
-        const res = await apiRequest({
-          url: urls.fetch_dataset,
-          method: 'post',
-          body: {
-            country_name: reqFetchDataset.selectedCountry,
-            city_name: reqFetchDataset.selectedCity,
-            boolean_query: '',
-            layerId: 1,
-            layer_name: defaultName,
-            action: action,
-            search_type: searchType,
-            text_search: textSearchInput?.trim(),
-            page_token: pageToken || '',
-            user_id: user_id,
-            zoom_level: currentZoomLevel,
-          },
-          isAuthRequest: true,
-        });
-        if (res?.data?.data) {
-          await assignPopularityCategory(res?.data?.data); //To be removed after fixed on backend
-          setLayerDataMap(prev => ({
-            ...prev,
-            [1]: res.data.data,
-          }));
-          let layers = [
-            {
+        // Handle keyword search
+        try {
+          const defaultName = `${reqFetchDataset.selectedCountry} ${reqFetchDataset.selectedCity} ${textSearchInput?.trim()}`;
+          const res = await apiRequest({
+            url: urls.fetch_dataset,
+            method: 'post',
+            body: {
+              country_name: reqFetchDataset.selectedCountry,
+              city_name: reqFetchDataset.selectedCity,
+              boolean_query: '',
+              layerId: 1,
+              layer_name: defaultName,
+              action: action,
+              search_type: searchType,
+              text_search: textSearchInput?.trim(),
+              page_token: pageToken || '',
+              user_id: user_id,
+              zoom_level: currentZoomLevel,
+            },
+            isAuthRequest: true,
+          });
+
+          if (res?.data?.data) {
+            await assignPopularityCategory(res?.data?.data); // To be removed after fixed on backend
+
+            // Update progress bar for the keyword search layer
+            if (res.data.data.progress) {
+              setFetchingProgress(prev => ({
+                ...prev,
+                [1]: res.data.data.progress || 0,
+              }));
+            }
+
+            // Handle delay before next call
+            if (res.data.delay_before_next_call) {
+              console.log(
+                `Waiting for ${res.data.delay_before_next_call} seconds before next call...`
+              );
+              await new Promise(resolve =>
+                setTimeout(resolve, res.data.delay_before_next_call * 1000)
+              );
+            }
+
+            setLayerDataMap(prev => ({
+              ...prev,
+              [1]: res.data.data,
+            }));
+
+            // If there's no next_page_token, set progress to 100%
+            if (!res.data.data.next_page_token) {
+              setFetchingProgress(prev => ({
+                ...prev,
+                [1]: 100,
+              }));
+            }
+
+            // Create a synthetic layer for keyword search
+            const keywordLayer = {
               id: 1,
               name: textSearchInput?.trim(),
               points_color: '',
               excludedTypes: [],
               includedTypes: [textSearchInput?.trim()],
-            },
-          ];
-          updateGeoJSONDataset(res.data.data, 1, defaultName);
-          setReqFetchDataset(prev => ({
-            ...prev,
-            layers: layers,
-          }));
+            };
+
+            updateGeoJSONDataset(res.data.data, 1, defaultName);
+          }
+        } catch (error) {
+          console.error(`Error fetching keyword search:`, error);
+          setIsError(error instanceof Error ? error : new Error(String(error)));
         }
       }
     } catch (error) {
@@ -397,7 +481,6 @@ export function LayerProvider(props: { children: ReactNode }) {
       setShowLoaderTopup(false);
     }
   }
-
   async function handleGetCountryCityCategory() {
     try {
       const res = await apiRequest({
@@ -406,7 +489,7 @@ export function LayerProvider(props: { children: ReactNode }) {
       });
       setCountries(processCityData(res.data.data, setCitiesData));
     } catch (error) {
-      setIsError(error);
+      setIsError(error instanceof Error ? error : new Error(String(error)));
     }
 
     try {
@@ -416,7 +499,7 @@ export function LayerProvider(props: { children: ReactNode }) {
       });
       setCategories(res.data.data);
     } catch (error) {
-      setIsError(error);
+      setIsError(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -626,7 +709,7 @@ export function LayerProvider(props: { children: ReactNode }) {
       await waitForMapReady();
 
       // Check authentication
-      if (!authResponse?.localId || !authResponse?.idToken) {
+      if (!hasAuthCredentials(authResponse)) {
         const message = 'Authentication required. Please log in to use this feature.';
         console.error(message);
         setIsError(new Error(message));
@@ -662,8 +745,8 @@ export function LayerProvider(props: { children: ReactNode }) {
               body: {
                 text_search: '',
                 page_token: '',
-                user_id: authResponse.localId,
-                idToken: authResponse.idToken,
+                user_id: hasAuthCredentials(authResponse) ? authResponse.localId : '0000',
+                idToken: hasAuthCredentials(authResponse) ? authResponse.idToken : '',
                 zoom_level: currentZoomLevel,
                 country_name: selectedCountry,
                 city_name: selectedCity,
@@ -682,10 +765,10 @@ export function LayerProvider(props: { children: ReactNode }) {
           }
           console.log('res', res);
           setGeoPoints(prevPoints => {
-            const populationLayer = {
-              layerId: 1001, // Special ID for population layer
+            const populationLayer: MapFeatures = {
+              layerId: 1001,
               type: 'FeatureCollection',
-              features: res.data.data?.features,
+              features: res.data.data?.features || [],
               display: true,
               points_color: colorOptions[0].hex,
               city_name: selectedCity,
@@ -696,6 +779,11 @@ export function LayerProvider(props: { children: ReactNode }) {
               is_refetch: isRefetch,
               basedon: 'population',
               visualization_mode: 'grid',
+              // Required properties for MapFeatures
+              bknd_dataset_id: res.data.data?.bknd_dataset_id || '',
+              prdcer_lyr_id: res.data.data?.prdcer_lyr_id || '',
+              records_count: res.data.data?.records_count || 0,
+              next_page_token: res.data.data?.next_page_token || '',
             };
 
             const filteredPoints = prevPoints.filter(
@@ -708,6 +796,12 @@ export function LayerProvider(props: { children: ReactNode }) {
           setLayerDataMap(prev => ({
             ...prev,
             1001: res.data.data,
+          }));
+
+          // Set progress to 100% for population layer
+          setFetchingProgress(prev => ({
+            ...prev,
+            1001: 100,
           }));
         } catch (error) {
           const message =
@@ -734,6 +828,22 @@ export function LayerProvider(props: { children: ReactNode }) {
       setShowLoaderTopup(false);
     }
   }
+
+  // Define default values for the required properties
+  const [currentLayerGroup, setCurrentLayerGroup] = useState<LayerGroup | null>(null);
+
+  // Define the required functions
+  const addLayerToGroup = (groupId: string, layer: Layer) => {
+    console.log(`Adding layer ${layer.id} to group ${groupId}`);
+  };
+
+  const removeLayerFromGroup = (groupId: string, layerId: number) => {
+    console.log(`Removing layer ${layerId} from group ${groupId}`);
+  };
+
+  const updateLayerInGroup = (groupId: string, layerId: number, updates: Partial<Layer>) => {
+    console.log(`Updating layer ${layerId} in group ${groupId}`, updates);
+  };
 
   return (
     <LayerContext.Provider
@@ -804,6 +914,13 @@ export function LayerProvider(props: { children: ReactNode }) {
         handlePopulationLayer,
         switchPopulationLayer,
         refetchPopulationLayer,
+        propsFetchingProgress: fetchingProgress,
+        propsSetFetchingProgress: setFetchingProgress,
+        currentLayerGroup,
+        setCurrentLayerGroup,
+        addLayerToGroup,
+        removeLayerFromGroup,
+        updateLayerInGroup,
       }}
     >
       {children}

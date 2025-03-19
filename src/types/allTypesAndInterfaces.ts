@@ -66,6 +66,7 @@ export interface UserLayerCardProps {
   typeOfCard: string;
   legend: string;
   points_color?: string;
+  progress?: number;
   onMoreInfo(selectedCatalog: { id: string; name: string; typeOfCard: string }): void;
 }
 export interface CardItem {
@@ -101,13 +102,13 @@ export interface CatalogContextType {
   handleAddClick: (
     id: string,
     typeOfCard: string,
-    callBack?: (city:string, country:string)=>void
+    callBack?: (city: string, country: string) => void
   ) => void;
   handleSaveCatalog: () => Promise<void>;
   resetFormStage: (resetTo: 'catalog') => void;
   geoPoints: MapFeatures[];
   setGeoPoints: React.Dispatch<React.SetStateAction<MapFeatures[]>>;
-  setGeoPointsWithCb: (geoPoints: MapFeatures[], cB:()=>void) => void;
+  setGeoPointsWithCb: (geoPoints: MapFeatures[], cB: () => void) => void;
   selectedColor: { name: string; hex: string } | null;
   setSelectedColor: React.Dispatch<React.SetStateAction<{ name: string; hex: string } | null>>;
   resetState: (keepGeoPointsState?: boolean) => void;
@@ -233,7 +234,7 @@ export interface LayerContextType {
   setSaveMethod: React.Dispatch<React.SetStateAction<string>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
   incrementFormStage(): void;
-  handleSaveLayer(): void;
+  handleSaveLayer(layerData: LayerCustomization | { layers: LayerCustomization[] }): Promise<void>;
   resetFormStage(): void;
   selectedColor: Color | null;
   setSelectedColor: React.Dispatch<React.SetStateAction<Color | null>>;
@@ -280,6 +281,9 @@ export interface LayerContextType {
   selectedCity: string;
   setSelectedCity: (city: string) => void;
 
+  layerDataMap: LayerDataMap;
+  setLayerDataMap: React.Dispatch<React.SetStateAction<LayerDataMap>>;
+
   currentLayerGroup: LayerGroup | null;
   setCurrentLayerGroup: React.Dispatch<React.SetStateAction<LayerGroup | null>>;
 
@@ -297,6 +301,8 @@ export interface LayerContextType {
   handlePopulationLayer: (shouldInclude: boolean) => Promise<void>;
   switchPopulationLayer: () => Promise<void>;
   refetchPopulationLayer: () => Promise<void>;
+  propsFetchingProgress: { [layerId: number]: number };
+  propsSetFetchingProgress: React.Dispatch<React.SetStateAction<{ [layerId: number]: number }>>;
 }
 
 export interface ReqFetchDataset {
@@ -339,11 +345,11 @@ export interface UIContextProps {
   setIsDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export interface GeoPoint {
+export interface GeoPointLocation {
   location: { lat: number; lng: number };
 }
 
-export type ArrayGeoPoint = Array<GeoPoint>;
+export type ArrayGeoPoint = Array<GeoPointLocation>;
 
 export interface BoxmapProperties {
   name: string;
@@ -477,7 +483,7 @@ export interface Layer {
   layer_legend?: string;
   layer_description?: string;
   prdcer_lyr_id?: string;
-  cost:number
+  cost: number;
 }
 
 export interface LayerGroup {
@@ -646,15 +652,15 @@ export interface LayerCustomizationItemProps {
   isSaved?: boolean;
 }
 
-export interface ProfileSettings{
-  show_price_on_purchase:boolean
+export interface ProfileSettings {
+  show_price_on_purchase: boolean;
 }
 export interface UserProfile {
   user_id: string;
   username: string;
   email: string;
-  account_type:string;
-  settings:ProfileSettings
+  account_type: string;
+  settings: ProfileSettings;
   prdcer?: {
     prdcer_dataset: Record<string, any>;
     prdcer_lyrs: Record<string, any>;
@@ -725,4 +731,12 @@ export interface PropertyStats {
   count: number;
   average?: number;
   median?: number;
+}
+
+export interface LegendFormatData {
+  selectedCountry: string;
+  selectedCity: string;
+  action?: string;
+  includedTypes: string[];
+  excludedTypes: string[];
 }
