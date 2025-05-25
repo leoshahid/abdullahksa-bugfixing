@@ -51,6 +51,9 @@ function Chat(props: ChatProps = defaultProps) {
   const [isDataFetching, setIsDataFetching] = useState(false);
   const userMessages = messages.filter(m => m.isUser).map(m => m.content);
 
+  const [isSampleLoading, setIsSampleLoading] = useState(false);
+  const [isFullDataLoading, setIsFullDataLoading] = useState(false);
+
   useEffect(() => {
     if (props.topic) setTopic(props.topic);
   }, [props.topic, setTopic]);
@@ -129,7 +132,11 @@ function Chat(props: ChatProps = defaultProps) {
         layer_name: `${cityName} ${_.upperFirst(booleanQuery)}`,
       };
 
-      setShowLoaderTopup(true);
+      if (action === 'sample') {
+        setIsSampleLoading(true);
+      } else {
+        setIsFullDataLoading(true);
+      }
 
       if (action === 'full data') {
         console.log('Setting centralizeOnce to true for full data');
@@ -164,6 +171,9 @@ function Chat(props: ChatProps = defaultProps) {
       if (typeof setMessages === 'function') {
         setMessages(prev => [...prev, errorMessage]);
       }
+    } finally {
+      setIsSampleLoading(false);
+      setIsFullDataLoading(false);
     }
   };
 
@@ -249,7 +259,7 @@ function Chat(props: ChatProps = defaultProps) {
               </p>
               <div className="flex gap-2">
                 <button
-                  disabled={showLoaderTopup}
+                  disabled={isSampleLoading || isFullDataLoading}
                   onClick={() => {
                     if (message.responseData?.body) {
                       handleDatasetFetch('sample', message.responseData.body);
@@ -257,14 +267,14 @@ function Chat(props: ChatProps = defaultProps) {
                   }}
                   className="bg-white border-2 border-[#115740] text-[#115740] px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
                 >
-                  {showLoaderTopup ? (
+                  {isSampleLoading ? (
                     <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-[#115740] rounded-full animate-spin"></span>
                   ) : (
                     'Get Sample'
                   )}
                 </button>
                 <button
-                  disabled={showLoaderTopup}
+                  disabled={isSampleLoading || isFullDataLoading}
                   onClick={() => {
                     if (message.responseData?.body) {
                       handleDatasetFetch('full data', message.responseData.body);
@@ -272,10 +282,16 @@ function Chat(props: ChatProps = defaultProps) {
                   }}
                   className="bg-[#115740] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#123f30] transition-colors"
                 >
-                  Full Data
-                  {message.responseData?.cost
-                    ? `($${parseFloat(message.responseData.cost).toFixed(2)})`
-                    : ''}
+                  {isFullDataLoading ? (
+                    <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-white rounded-full animate-spin"></span>
+                  ) : (
+                    <>
+                      Full Data
+                      {message.responseData?.cost
+                        ? `($${parseFloat(message.responseData.cost).toFixed(2)})`
+                        : ''}
+                    </>
+                  )}
                 </button>
               </div>
               <button
