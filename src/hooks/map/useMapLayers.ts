@@ -22,6 +22,32 @@ const cache = new LRUCache({
   max: 100,
 });
 
+const streetViewCache = new Map();
+const debouncedStreetViewCheck = _.debounce(
+  async (lat: number, lng: number, callback: (hasStreetView: boolean) => void) => {
+    const cacheKey = `${lat},${lng}`;
+    if (streetViewCache.has(cacheKey)) {
+      callback(streetViewCache.get(cacheKey));
+      return;
+    }
+
+    try {
+      const hasStreetView = await apiRequest({
+        url: urls.check_street_view,
+        method: 'POST',
+        body: { lat, lng },
+      });
+      const hasStreetViewValue = hasStreetView.data.data.has_street_view;
+      streetViewCache.set(cacheKey, hasStreetViewValue);
+      callback(hasStreetViewValue);
+    } catch (error) {
+      console.error('Error fetching street view:', error);
+      callback(false);
+    }
+  },
+  300
+);
+
 const getGridPaint = (
   basedonLength: boolean,
   pointsColor: string,
@@ -603,24 +629,18 @@ export function useMapLayers() {
 
                     const [lng, lat] = coordinates;
 
-                    try {
-                      await apiRequest({
-                        url: urls.check_street_view,
-                        method: 'POST',
-                        body: { lat, lng },
-                      });
-
-                      const updatedContent = generatePopupContent(
-                        properties,
-                        coordinates,
-                        false,
-                        false
-                      );
-                      popup?.setHTML(updatedContent);
-                    } catch (error) {
-                      console.error('Error fetching street view:', error);
-                      popup?.setHTML(generatePopupContent(properties, coordinates, false, false));
-                    }
+                    // Use the debounced function with a callback
+                    debouncedStreetViewCheck(lat, lng, hasStreetView => {
+                      if (popup) {
+                        const updatedContent = generatePopupContent(
+                          properties,
+                          coordinates,
+                          false,
+                          hasStreetView
+                        );
+                        popup.setHTML(updatedContent);
+                      }
+                    });
 
                     if (popup) {
                       const popupElement = popup.getElement();
