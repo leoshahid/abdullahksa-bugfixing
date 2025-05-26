@@ -787,15 +787,6 @@ export function LayerProvider(props: { children: ReactNode }) {
       shouldReturnFeatures,
     });
 
-  // Add zoom level effect to trigger refetch for intelligence layers
-  useEffect(() => {
-    // Only refetch if we have existing intelligence layers
-    const intelligenceLayers = geoPoints.filter(point => point.is_intelligent);
-    if (intelligenceLayers.length > 0) {
-      refetchIntelligenceLayers();
-    }
-  }, [currentZoomLevel]);
-
   useEffect(() => {
     resetAreaIntelligence();
   }, [selectedContainerType]);
@@ -1156,16 +1147,6 @@ export function LayerProvider(props: { children: ReactNode }) {
       featureCount: features.length,
     };
   }
-  useEffect(() => {
-    const map = mapRef.current;
-    if (map) {
-      refetchIntelligenceLayers();
-      map.on('moveend', refetchIntelligenceLayers);
-      return () => {
-        map.off('moveend', refetchIntelligenceLayers);
-      };
-    }
-  }, [currentZoomLevel, mapRef.current]);
 
   return (
     <LayerContext.Provider
