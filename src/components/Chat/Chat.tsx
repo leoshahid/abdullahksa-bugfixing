@@ -391,19 +391,11 @@ function Chat(props: ChatProps = defaultProps) {
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 p-2 border-none focus:ring-0 focus:outline-none resize-none scrollbar-hide"
-            style={{
-              minHeight: '40px',
-              height: '40px',
-              maxHeight: '96px', // 4 lines * 24px line height
-              lineHeight: '24px',
-              overflowY: 'auto',
-              msOverflowStyle: 'none' /* IE and Edge */,
-              scrollbarWidth: 'none' /* Firefox */,
-            }}
+            className="flex-1 p-2 border-none focus:ring-0 focus:outline-none resize-none min-h-[40px] h-[40px] max-h-24 leading-6 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none]"
             onInput={e => {
               const target = e.target as HTMLTextAreaElement;
-              target.style.height = `${Math.min(target.scrollHeight, 96)}px`; // Cap at 4 lines
+              target.style.height = '40px'; // Reset height first
+              target.style.height = `${Math.min(target.scrollHeight, 96)}px`; // Then adjust if needed
             }}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
