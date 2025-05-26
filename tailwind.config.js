@@ -69,6 +69,13 @@ export default {
             backgroundColor: 'transparent',
           },
         },
+        '.scrollbar-hide': {
+          scrollbarWidth: 'none',
+          '-ms-overflow-style': 'none',
+          '&::-webkit-scrollbar': {
+            display: 'none',
+          },
+        },
       };
       addUtilities(newUtilities, ['responsive', 'hover']);
     },

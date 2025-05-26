@@ -391,7 +391,7 @@ function Chat(props: ChatProps = defaultProps) {
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 p-2 border-none focus:ring-0 focus:outline-none resize-none min-h-[40px] h-[40px] max-h-24 leading-6 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none]"
+            className="flex-1 p-2 border-none focus:ring-0 focus:outline-none resize-none min-h-[40px] h-[40px] max-h-24 leading-6 overflow-y-auto scrollbar-hide"
             onInput={e => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = '40px'; // Reset height first
