@@ -350,6 +350,10 @@ export interface LayerContextType {
     action: string,
     event?: React.MouseEvent<HTMLButtonElement>
   ) => boolean | Error;
+  includeIncome: boolean;
+  setIncludeIncome: React.Dispatch<React.SetStateAction<boolean>>;
+  switchIncomeLayer: () => Promise<void>;
+  refetchIncomeLayer: () => Promise<void>;
   currentViewportInsights: Insights | null;
 }
 

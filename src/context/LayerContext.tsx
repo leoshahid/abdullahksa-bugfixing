@@ -58,7 +58,6 @@ export function LayerProvider(props: { children: ReactNode }) {
   const { authResponse } = useAuth();
   const { children } = props;
   const { geoPoints, setGeoPoints } = useCatalogContext();
-  // State from useLocationAndCategories
   const [countries, setCountries] = useState<string[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [citiesData, setCitiesData] = useState<{ [country: string]: City[] }>({});
@@ -83,7 +82,6 @@ export function LayerProvider(props: { children: ReactNode }) {
   const [manyFetchDatasetResp, setManyFetchDatasetResp] = useState<
     FetchDatasetResponse | undefined
   >(undefined);
-  const [FetchDatasetResp, setFetchDatasetResp] = useState<FetchDatasetResponse | null>(null);
   const [saveMethod, setSaveMethod] = useState<string>('');
   const [datasetInfo, setDatasetInfo] = useState<{
     bknd_dataset_id: string;
@@ -105,10 +103,6 @@ export function LayerProvider(props: { children: ReactNode }) {
 
   const [showLoaderTopup, setShowLoaderTopup] = useState<boolean>(false);
 
-  const [postResMessage, setPostResMessage] = useState<string>('');
-  const [postResId, setPostResId] = useState<string>('');
-
-  const [localLoading, setLocalLoading] = useState<boolean>(false);
   const [textSearchInput, setTextSearchInput] = useState<string>('');
   const [searchType, setSearchType] = useState<string>('category_search');
   const [password, setPassword] = useState<string>('');
@@ -118,8 +112,8 @@ export function LayerProvider(props: { children: ReactNode }) {
   const [layerDataMap, setLayerDataMap] = useState<LayerDataMap>({});
   const [showErrorMessage, setShowErrorMessage] = useState<boolean>(false);
 
-  const [selectedCountry, setSelectedCountry] = useState<string>('');
-  const [selectedCity, setSelectedCity] = useState<string>('');
+  const [selectedCountry, setSelectedCountry] = useState<string>('Saudi Arabia');
+  const [selectedCity, setSelectedCity] = useState<string>('Riyadh');
 
   const [layerStates, setLayerStates] = useState<{
     [layerId: number]: LayerState;
@@ -133,6 +127,9 @@ export function LayerProvider(props: { children: ReactNode }) {
   const [currentViewportInsights, setCurrentViewportInsights] = useState<Insights | any | null>(
     null
   );
+
+  const [includePopulation, setIncludePopulation] = useState(false);
+  const [includeIncome, setIncludeIncome] = useState(false);
 
   function incrementFormStage() {
     if (createLayerformStage === 'initial') {
@@ -584,6 +581,11 @@ export function LayerProvider(props: { children: ReactNode }) {
     }
   }
 
+  const resetAreaIntelligence = () => {
+    setIncludePopulation(false);
+    setIncludeIncome(false);
+  };
+
   function handleCountryCitySelection(event: React.ChangeEvent<HTMLSelectElement>) {
     const { name, value } = event.target;
 
@@ -593,7 +595,7 @@ export function LayerProvider(props: { children: ReactNode }) {
       setSelectedCity('');
 
       // Reset area intelligence
-      setIncludePopulation(false);
+      resetAreaIntelligence();
 
       // Get cities for selected country
       const selectedCountryCities = citiesData[value] || [];
@@ -659,10 +661,6 @@ export function LayerProvider(props: { children: ReactNode }) {
     return true;
   }
 
-  useEffect(() => {
-    console.log('searchType', searchType);
-  }, [searchType]);
-
   function resetFetchDatasetForm() {
     setReqFetchDataset({
       selectedCountry: '',
@@ -675,7 +673,7 @@ export function LayerProvider(props: { children: ReactNode }) {
     setLayerDataMap({});
     setSelectedCountry('');
     setSelectedCity('');
-    setIncludePopulation(false);
+    resetAreaIntelligence();
     setTextSearchInput('');
     setSearchType('category_search');
     setPassword('');
@@ -727,31 +725,80 @@ export function LayerProvider(props: { children: ReactNode }) {
     }
   }, [reqFetchDataset?.layers]);
 
-  // Add zoom level effect to trigger refetch for all grid population layers
+  const fetchAreaIntelligenceByViewport = useCallback(
+    async ({
+      withPopulation,
+      withIncome,
+      shouldReturnFeatures = false,
+    }: {
+      withPopulation: boolean;
+      withIncome: boolean;
+      shouldReturnFeatures?: boolean;
+    }): Promise<any> => {
+      const map = mapRef.current;
+      if (!map) {
+        console.warn('Map not initialized');
+        return;
+      }
+      const bounds = map.getBounds();
+      const reqBody = {
+        min_lng: bounds.getWest(),
+        min_lat: bounds.getSouth(),
+        max_lng: bounds.getEast(),
+        max_lat: bounds.getNorth(),
+        population: withPopulation,
+        income: withIncome,
+        zoom_level: 7 + currentZoomLevel,
+        user_id: authResponse?.localId,
+      };
+      const res = await apiRequest({
+        url: urls.fetch_population_by_viewport,
+        method: 'post',
+        body: reqBody,
+        isAuthRequest: true,
+        useCache: true,
+      });
+      if (!res.data.data) {
+        throw new Error('No data returned for current viewport');
+      }
+      const features = res.data.data.features;
+
+      if (shouldReturnFeatures) {
+        return features;
+      }
+
+      const insights = calculateInsights(features);
+      setCurrentViewportInsights(insights);
+      return null;
+    },
+    [currentZoomLevel, mapRef.current]
+  );
+
+  const fetchPopulationByViewport = (shouldReturnFeatures: boolean = false) =>
+    fetchAreaIntelligenceByViewport({
+      withPopulation: true,
+      withIncome: false,
+      shouldReturnFeatures,
+    });
+  const fetchIncomeByViewport = (shouldReturnFeatures: boolean = false) =>
+    fetchAreaIntelligenceByViewport({
+      withPopulation: true,
+      withIncome: true,
+      shouldReturnFeatures,
+    });
+
+  // Add zoom level effect to trigger refetch for intelligence layers
   useEffect(() => {
-    // Only refetch if we have existing population grid layers
-    const gridLayers = geoPoints.filter(point => point.is_grid && point.is_intelligent);
-    if (gridLayers.length > 0) {
-      refetchPopulationLayer();
+    // Only refetch if we have existing intelligence layers
+    const intelligenceLayers = geoPoints.filter(point => point.is_intelligent);
+    if (intelligenceLayers.length > 0) {
+      refetchIntelligenceLayers();
     }
   }, [currentZoomLevel]);
 
   useEffect(() => {
-    handlePopulationLayer(false);
+    resetAreaIntelligence();
   }, [selectedContainerType]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (map) {
-      fetchPopulationByViewport();
-      map.on('moveend', fetchPopulationByViewport);
-      return () => {
-        map.off('moveend', fetchPopulationByViewport);
-      };
-    }
-  }, [currentZoomLevel, mapRef.current]);
-
-  const [includePopulation, setIncludePopulation] = useState(false);
 
   async function switchPopulationLayer() {
     const shouldInclude = !includePopulation;
@@ -763,6 +810,36 @@ export function LayerProvider(props: { children: ReactNode }) {
     await handlePopulationLayer(true, true);
   }
 
+  const waitForMapReady = () =>
+    new Promise<void>(resolve => {
+      const map = mapRef.current;
+      if (!map) {
+        console.warn('Map not initialized');
+        return;
+      }
+      if (map.isStyleLoaded() && !map.isMoving()) {
+        resolve();
+        return;
+      }
+
+      const checkMapReady = () => {
+        if (map.isStyleLoaded() && !map.isMoving()) {
+          map.off('idle', checkMapReady);
+          map.off('render', checkMapReady);
+          resolve();
+        }
+      };
+
+      map.on('idle', checkMapReady);
+      map.on('render', checkMapReady);
+
+      setTimeout(() => {
+        map.off('idle', checkMapReady);
+        map.off('render', checkMapReady);
+        resolve();
+      }, 5000);
+    });
+
   async function handlePopulationLayer(shouldInclude: boolean, isRefetch: boolean = false) {
     const map = mapRef.current;
 
@@ -770,33 +847,6 @@ export function LayerProvider(props: { children: ReactNode }) {
       console.warn('Map not initialized');
       return;
     }
-
-    const waitForMapReady = () =>
-      new Promise<void>(resolve => {
-        if (map.isStyleLoaded() && !map.isMoving()) {
-          resolve();
-          return;
-        }
-
-        const checkMapReady = () => {
-          if (map.isStyleLoaded() && !map.isMoving()) {
-            map.off('idle', checkMapReady);
-            map.off('render', checkMapReady);
-            resolve();
-          }
-        };
-
-        map.on('idle', checkMapReady);
-        map.on('render', checkMapReady);
-
-        // Timeout after 5 seconds
-        setTimeout(() => {
-          map.off('idle', checkMapReady);
-          map.off('render', checkMapReady);
-          resolve(); // Proceed anyway after timeout
-        }, 5000);
-      });
-
     try {
       await waitForMapReady();
 
@@ -809,22 +859,13 @@ export function LayerProvider(props: { children: ReactNode }) {
         return;
       }
 
-      // Check city/country selection
-      if (shouldInclude && (!selectedCity || !selectedCountry)) {
-        const message = 'Please select a city and country first.';
-        console.error(message, { selectedCity, selectedCountry });
-        setIsError(new Error(message));
-        setShowLoaderTopup(false);
-        return;
-      }
-
       setIncludePopulation(shouldInclude);
 
       if (shouldInclude) {
         setShowLoaderTopup(true);
         try {
           let res: any;
-          const shouldFake = FAKE_IS_ENABLED && selectedCountry.toLowerCase() == 'saudi arabia';
+          const shouldFake = FAKE_IS_ENABLED;
 
           if (shouldFake) {
             const fakeZoomLevel = mapZoomToFakeDataZoom(currentZoomLevel);
@@ -856,6 +897,11 @@ export function LayerProvider(props: { children: ReactNode }) {
             }
           }
           console.log('res', res);
+          console.log(
+            'Raw POPULATION features for geoPoints:',
+            JSON.stringify(res.data.data?.features, null, 2)
+          );
+
           setGeoPoints(prevPoints => {
             const populationLayer = {
               layerId: 1001, // Special ID for population layer
@@ -863,8 +909,7 @@ export function LayerProvider(props: { children: ReactNode }) {
               features: res.data.data?.features,
               display: true,
               points_color: colorOptions[0].hex,
-              city_name: selectedCity,
-              layer_legend: `${selectedCity} Population Layer (${res.data.data?.features?.length})`,
+              layer_legend: `Population Layer (${res.data.data?.features?.length})`,
               is_grid: true,
               is_intelligent: true,
               is_fake: shouldFake,
@@ -894,7 +939,9 @@ export function LayerProvider(props: { children: ReactNode }) {
         }
       } else {
         // Remove population layer
-        setGeoPoints(prev => prev.filter(point => !point.is_intelligent));
+        setGeoPoints(prev =>
+          prev.filter(point => !(point.is_intelligent && point.basedon === 'population'))
+        );
 
         // Clean up layer data map
         setLayerDataMap(prev => {
@@ -907,6 +954,130 @@ export function LayerProvider(props: { children: ReactNode }) {
       console.error('Error updating population layer:', error);
       setIsError(new Error('Failed to update population layer'));
       setShowLoaderTopup(false);
+    }
+  }
+
+  useEffect(() => {
+    console.debug('includePopulation', includePopulation, 'includeIncome', includeIncome);
+  }, [includePopulation, includeIncome]);
+
+  const _handleIncomeLayer = useCallback(
+    async (shouldInclude: boolean, isRefetch: boolean = false) => {
+      const map = mapRef.current;
+
+      if (!shouldInitializeFeatures || !map) {
+        console.warn('Map not initialized');
+        return;
+      }
+      try {
+        await waitForMapReady();
+
+        // Check authentication
+        if (!authResponse?.localId || !authResponse?.idToken) {
+          const message = 'Authentication required. Please log in to use this feature.';
+          console.error(message);
+          setIsError(new Error(message));
+          setShowLoaderTopup(false);
+          return;
+        }
+
+        setIncludeIncome(shouldInclude);
+
+        if (shouldInclude) {
+          setShowLoaderTopup(true);
+          try {
+            const features = await fetchIncomeByViewport(true);
+            console.log('features', features.length);
+
+            console.log('Raw INCOME features for geoPoints:', JSON.stringify(features, null, 2));
+
+            setGeoPoints(prevPoints => {
+              const incomeLayer = {
+                layerId: 1003, // Special ID for income layer
+                type: 'FeatureCollection',
+                features: features,
+                display: true,
+                points_color: colorOptions[3].hex,
+                layer_legend: `Income Intelligence (${features?.length})`,
+                is_grid: true,
+                is_intelligent: true,
+                is_fake: true,
+                is_refetch: isRefetch,
+                basedon: 'income',
+                visualization_mode: 'grid',
+              };
+
+              const filteredPoints = prevPoints.filter(
+                point => point.layerId !== incomeLayer.layerId
+              );
+              return [...filteredPoints, incomeLayer];
+            });
+
+            // Update layer data map
+            setLayerDataMap(prev => ({
+              ...prev,
+              1003: features,
+            }));
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to fetch income data';
+            console.error('Income layer error:', error);
+            setIsError(new Error(message));
+          } finally {
+            setShowLoaderTopup(false);
+          }
+        } else {
+          // Remove income layer
+          setGeoPoints(prev =>
+            prev.filter(point => !(point.is_intelligent && point.basedon === 'income'))
+          );
+
+          // Clean up layer data map
+          setLayerDataMap(prev => {
+            const newMap = { ...prev };
+            delete newMap[1003];
+            return newMap;
+          });
+        }
+      } catch (error) {
+        console.error('Error updating income layer:', error);
+        setIsError(new Error('Failed to update income layer'));
+        setShowLoaderTopup(false);
+      }
+    },
+    [
+      mapRef,
+      shouldInitializeFeatures,
+      authResponse,
+      fetchIncomeByViewport,
+      setGeoPoints,
+      setLayerDataMap,
+      setIsError,
+      setShowLoaderTopup,
+      setIncludeIncome,
+    ]
+  );
+
+  const handleIncomeLayer = useMemo(
+    () => _.debounce(_handleIncomeLayer, 300),
+    [_handleIncomeLayer]
+  );
+
+  async function switchIncomeLayer() {
+    const shouldInclude = !includeIncome;
+    handleIncomeLayer(shouldInclude);
+  }
+
+  async function refetchIncomeLayer() {
+    await handleIncomeLayer(false);
+    await handleIncomeLayer(true, true);
+  }
+
+  async function refetchIntelligenceLayers() {
+    if (includeIncome) {
+      refetchIncomeLayer();
+      handlePopulationLayer(false);
+    } else {
+      refetchPopulationLayer();
     }
   }
 
@@ -1012,43 +1183,21 @@ export function LayerProvider(props: { children: ReactNode }) {
         median: parseFloat(medianDensity.toFixed(2)),
       },
       age: {
-        medianOfMediansTotal: parseFloat(medianOfMedianAgesTotal.toFixed(1)),
-        medianOfMediansFemale: parseFloat(medianOfMedianAgesFemale.toFixed(1)), // Add female median age
+        medianOfMediansTotal: parseFloat(medianOfMedianAgesTotal?.toFixed(1)),
+        medianOfMediansFemale: parseFloat(medianOfMedianAgesFemale?.toFixed(1)),
       },
       featureCount: features.length,
     };
   }
-
-  const fetchPopulationByViewport = useCallback(async (): Promise<void> => {
+  useEffect(() => {
     const map = mapRef.current;
-    if (!map) {
-      console.warn('Map not initialized');
-      return;
+    if (map) {
+      refetchIntelligenceLayers();
+      map.on('moveend', refetchIntelligenceLayers);
+      return () => {
+        map.off('moveend', refetchIntelligenceLayers);
+      };
     }
-    const bounds = map.getBounds();
-    const reqBody = {
-      min_lng: bounds.getWest(),
-      min_lat: bounds.getSouth(),
-      max_lng: bounds.getEast(),
-      max_lat: bounds.getNorth(),
-      population: true,
-      income: true,
-      zoom_level: 7 + currentZoomLevel,
-      user_id: authResponse?.localId,
-    };
-    const res = await apiRequest({
-      url: urls.fetch_population_by_viewport,
-      method: 'post',
-      body: reqBody,
-      isAuthRequest: true,
-    });
-    if (!res.data.data) {
-      throw new Error('No data returned for current viewport');
-    }
-    const features = res.data.data.features;
-    const insights = calculateInsights(features);
-    setCurrentViewportInsights(insights);
-    return;
   }, [currentZoomLevel, mapRef.current]);
 
   return (
@@ -1119,9 +1268,14 @@ export function LayerProvider(props: { children: ReactNode }) {
         updateLayerState,
         includePopulation,
         setIncludePopulation,
+        includeIncome,
+        setIncludeIncome,
         handlePopulationLayer,
         switchPopulationLayer,
         refetchPopulationLayer,
+        handleIncomeLayer,
+        switchIncomeLayer,
+        refetchIncomeLayer,
         handleSubmitFetchDataset,
         currentViewportInsights,
       }}

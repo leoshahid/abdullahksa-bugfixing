@@ -85,6 +85,7 @@ export function useMapLayers() {
   const { isMobile } = useUIContext();
   const map = mapRef.current;
   const { geoPoints } = useCatalogContext();
+
   const [cityBounds, setCityBounds] = useState<Record<string, any>>({});
 
   // Add this ref
@@ -244,6 +245,12 @@ export function useMapLayers() {
               return 0;
             })
             .forEach(async (featureCollection, index) => {
+              if (featureCollection.basedon === 'income') {
+                console.log(
+                  'INCOME Layer featureCollection:',
+                  JSON.stringify(featureCollection, null, 2)
+                );
+              }
               if (!featureCollection.type || !Array.isArray(featureCollection.features)) {
                 console.error('🗺️ [Map] Invalid GeoJSON structure:', featureCollection);
                 return;
@@ -279,6 +286,11 @@ export function useMapLayers() {
                       {
                         type: 'module',
                       }
+                    );
+
+                    console.log(
+                      'featureCollection - polygonGridGeneration.worker.ts',
+                      JSON.stringify(featureCollection, null, 2)
                     );
 
                     worker.postMessage({ featureCollection });
@@ -650,6 +662,8 @@ export function useMapLayers() {
                 console.error('Error adding layer:', error);
               }
             });
+
+          console.log(`geoPoints ${geoPoints.length}`, geoPoints);
         }
       } catch (error) {
         console.error('Error managing layers:', error);

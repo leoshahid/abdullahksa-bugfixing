@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import { StylesControl } from '../../components/Map/StylesControl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import { CircleControl } from '../../components/Map/CircleControl';
-import { PopulationControl } from '../../components/Map/PopulationControl';
+import { AreaIntelligeneControl } from '../../components/Map/AreaIntelligenceControl';
 import { useUIContext } from '../../context/UIContext';
 import { usePolygonsContext } from '../../context/PolygonsContext';
 import { useMapContext } from '../../context/MapContext';

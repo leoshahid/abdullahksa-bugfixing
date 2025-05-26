@@ -77,8 +77,6 @@ const PolygonsProvider = ({ children }: ProviderProps) => {
       const previouslyMatchedPoints = new Set();
 
       geoPoints.forEach((geoPoint: GeoPoint) => {
-        const totalFeatures = geoPoint.features?.length || 0;
-
         polygonShapes.forEach((polygonShape, index) => {
           const areaName = polygonData.areas[index];
           const matchingFeatures =

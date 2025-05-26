@@ -12,7 +12,7 @@ import { useLegendManager } from '../../hooks/map/useLegendManager';
 import { useMapStyle } from '../../hooks/map/useMapStyle';
 import StatisticsPopups from '../../components/Map/StatisticsPopups';
 import BenchmarkControl from '../../components/Map/BenchmarkControl';
-import { PopulationControl } from '../../components/Map/PopulationControl';
+import { AreaIntelligeneControl } from '../../components/Map/AreaIntelligenceControl';
 import SavedLocations from '../../components/Map/SavedLocations';
 import { useMapContext } from '../../context/MapContext';
 import { CaseStudyPanel } from '../../components/CaseStudy/CaseStudyPanel';
@@ -39,7 +39,7 @@ function Container() {
           <>
             <div className="absolute top-4 left-4 flex items-start gap-2 z-[1]">
               <BenchmarkControl />
-              <PopulationControl />
+              <AreaIntelligeneControl />
             </div>
             <SavedLocations />
           </>

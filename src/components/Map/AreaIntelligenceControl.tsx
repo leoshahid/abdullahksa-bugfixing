@@ -2,34 +2,48 @@ import React, { useEffect, useState } from 'react';
 import { useLayerContext } from '../../context/LayerContext';
 import { useCatalogContext } from '../../context/CatalogContext';
 
-export const PopulationControl: React.FC = () => {
-  const { switchPopulationLayer, selectedCity, selectedCountry, includePopulation } =
+export const AreaIntelligeneControl: React.FC = () => {
+  const { switchPopulationLayer, switchIncomeLayer, includePopulation, includeIncome } =
     useLayerContext();
   const [isOpen, setIsOpen] = useState(false);
   const { selectedContainerType } = useCatalogContext();
-  const isEnabled = Boolean(selectedCity && selectedCountry);
+
+  const hasCity = true;
+
+  const [isPopulationEnabled, setIsPopulationEnabled] = useState(false);
+  const [isPopulationIncluded, setIsPopulationIncluded] = useState(false);
+
+  const close = () => setIsOpen(false);
 
   useEffect(() => {
-    setIsOpen(false);
+    close();
   }, [selectedContainerType]);
 
   useEffect(() => {
-    if (!isEnabled) setIsOpen(false);
-  }, [isEnabled]);
+    if (!hasCity) close();
+  }, [hasCity]);
+
+  useEffect(() => {
+    setIsPopulationEnabled(!includeIncome && hasCity);
+  }, [includeIncome, hasCity]);
+
+  useEffect(() => {
+    setIsPopulationIncluded((includeIncome || includePopulation) && hasCity);
+  }, [includeIncome, includePopulation, hasCity]);
 
   return (
     <div className="relative">
       <button
-        onClick={() => isEnabled && setIsOpen(!isOpen)}
+        onClick={() => hasCity && setIsOpen(!isOpen)}
         className={`
           flex items-center justify-center
           w-[47px] h-[47px] rounded-md p-2
           bg-gem-gradient border text-gray-200 border-gem/20 
           shadow-sm transition-all duration-200
-          ${!isEnabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100'}
-          ${includePopulation ? 'bg-gem-green text-white hover:bg-[#0d4432]' : ''}
+          ${!hasCity ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100'}
+          ${includeIncome || includePopulation ? 'bg-gem-green text-white hover:bg-[#0d4432]' : ''}
         `}
-        title={isEnabled ? 'Area Intelligence' : 'Please select a city first'}
+        title={hasCity ? 'Area Intelligence' : 'Please select a city first'}
       >
         <div className="flex items-center justify-center w-full h-full">
           <svg
@@ -39,7 +53,7 @@ export const PopulationControl: React.FC = () => {
             width="18"
             height="18"
             className={`
-              ${!isEnabled ? '[&>g>path]:stroke-gray-400' : '[&>g>path]:stroke-current'}
+              ${!hasCity ? '[&>g>path]:stroke-gray-400' : '[&>g>path]:stroke-current'}
               ${includePopulation ? '[&>g>path]:stroke-white' : ''}
             `}
           >
@@ -88,35 +102,36 @@ export const PopulationControl: React.FC = () => {
       {isOpen && (
         <div className="absolute left-0 mt-2 min-w-[22rem] z-50">
           <div
-            aria-disabled={!isEnabled}
+            aria-disabled={!hasCity}
             className={`
               relative flex flex-col p-4 rounded-lg border 
               transition-all duration-200 ease-in-out
               ${
-                !isEnabled
-                  ? 'text-gray-500 bg-gem/20 border-gray-200'
+                !hasCity
+                  ? 'text-gray- 500 bg-gem/20 border-gray-200'
                   : 'text-gray-100 bg-gem-gradient border-gem-green/20'
               } 
               aria-disabled:opacity-80 aria-disabled:cursor-not-allowed
             `}
-            title={!isEnabled ? 'Please select a city and country' : 'Activate area intelligence'}
+            title={!hasCity ? 'Please select a city and country' : 'Activate area intelligence'}
           >
-            <label className="font-semibold text-white">Area Intelligence</label>
+            <div className="font-semibold text-white">Area Intelligence</div>
+
             <label
               htmlFor="population-toggle-map"
-              aria-disabled={!isEnabled}
+              aria-disabled={!isPopulationEnabled}
               className={`
                 flex items-center justify-between 
                 border-t border-gem/20 mt-2 pt-2
                 ${
-                  !isEnabled
-                    ? 'bg-white/90 p-3 rounded-md cursor-not-allowed'
-                    : 'bg-white/95 p-3 rounded-md cursor-pointer'
+                  !isPopulationEnabled
+                    ? 'bg-white/70 p-3 rounded-md cursor-not-allowed'
+                    : 'bg-white/95 p-3 rounded-md cursor-pointer '
                 }
               `}
             >
               <div className="flex flex-col">
-                <label className="font-medium text-gem">Area Population Intelligence</label>
+                <label className="font-medium text-gem">Population Intelligence</label>
                 <p className="text-sm text-gem/80 mt-1">Enable smart population data</p>
               </div>
 
@@ -124,16 +139,75 @@ export const PopulationControl: React.FC = () => {
                 <input
                   id="population-toggle-map"
                   type="checkbox"
-                  checked={includePopulation}
-                  disabled={!isEnabled}
+                  checked={isPopulationIncluded}
+                  disabled={!isPopulationEnabled}
                   onChange={() => {
-                    switchPopulationLayer();
+                    if (isPopulationEnabled) {
+                      switchPopulationLayer();
+                    }
                   }}
                   className="sr-only peer"
                 />
                 <div
                   className={`
-                    ${!isEnabled ? 'cursor-not-allowed' : 'cursor-pointer'}
+                    ${!isPopulationEnabled ? 'cursor-not-allowed' : 'cursor-pointer'}
+                    w-14 h-7 bg-gray-200 
+                    peer-focus:outline-none peer-focus:ring-4 
+                    peer-focus:ring-gem-green/20 
+                    rounded-full peer
+                    ${isPopulationEnabled ? 'peer-checked:bg-gem-green/100' : 'peer-checked:bg-gem-green/70'}
+                    peer-disabled:cursor-not-allowed
+                    peer-disabled:after:bg-gray-100
+                    after:content-['']
+                    after:absolute 
+                    after:top-[2px] 
+                    after:left-[2px]
+                    after:bg-white 
+                    after:border-gray-300 
+                    after:border 
+                    after:rounded-full
+                    after:h-6 
+                    after:w-6 
+                    after:transition-all
+                    peer-checked:after:translate-x-[28px]
+                    peer-checked:after:border-white
+                  `}
+                />
+              </div>
+            </label>
+
+            <label
+              htmlFor="income-toggle-map"
+              aria-disabled={!hasCity}
+              className={`
+                flex items-center justify-between 
+                border-t border-gem/20 mt-2 pt-2
+                ${
+                  !hasCity
+                    ? 'bg-white/90 p-3 rounded-md cursor-not-allowed'
+                    : 'bg-white/95 p-3 rounded-md cursor-pointer'
+                }
+              `}
+            >
+              <div className="flex flex-col">
+                <label className="font-medium text-gem">Income Intelligence</label>
+                <p className="text-sm text-gem/80 mt-1">Enable smart income data</p>
+              </div>
+
+              <div className="relative">
+                <input
+                  id="income-toggle-map"
+                  type="checkbox"
+                  checked={includeIncome}
+                  disabled={!hasCity}
+                  onChange={() => {
+                    switchIncomeLayer();
+                  }}
+                  className="sr-only peer"
+                />
+                <div
+                  className={`
+                    ${!hasCity ? 'cursor-not-allowed' : 'cursor-pointer'}
                     w-14 h-7 bg-gray-200 
                     peer-focus:outline-none peer-focus:ring-4 
                     peer-focus:ring-gem-green/20 

@@ -633,69 +633,6 @@ const FetchDatasetForm = () => {
             </select>
           </div>
 
-          <div className="pt-4">
-            <div
-              aria-disabled={!selectedCity || !selectedCountry}
-              className={`relative flex flex-col p-4 rounded-lg border transition-all duration-200 
-                ${
-                  !selectedCity || !selectedCountry
-                    ? 'text-gray-500 bg-gem/20 border-gray-200'
-                    : 'text-gray-100 bg-gem-gradient border-gem-green/20'
-                } 
-                aria-disabled:opacity-80 aria-disabled:cursor-not-allowed`}
-              title={
-                !selectedCity || !selectedCountry
-                  ? 'Please select a city and country'
-                  : 'Activate area intelligence'
-              }
-            >
-              <label className="font-semibold text-white">Area Intelligence</label>
-              <label
-                htmlFor="population-toggle"
-                aria-disabled={!selectedCity || !selectedCountry}
-                className={`
-                flex items-center justify-between border-t border-gem/20 mt-2 pt-2
-                ${
-                  !selectedCity || !selectedCountry
-                    ? 'bg-white/90 p-3 rounded-md cursor-not-allowed'
-                    : 'bg-white/95 p-3 rounded-md cursor-pointer'
-                }
-              `}
-              >
-                <div className="flex flex-col">
-                  <label className="font-medium text-gem">Area Population Intelligence</label>
-                  <p className="text-sm text-gem/80 mt-1">Enable smart population data</p>
-                </div>
-
-                <div className="relative">
-                  <input
-                    id="population-toggle"
-                    type="checkbox"
-                    checked={includePopulation}
-                    disabled={!selectedCity || !selectedCountry}
-                    onChange={() => {
-                      switchPopulationLayer();
-                      console.log('includePopulation', includePopulation);
-                    }}
-                    className="sr-only peer"
-                  />
-                  <div
-                    className={`
-                    ${!selectedCity || !selectedCountry ? 'cursor-not-allowed' : 'cursor-pointer'} w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 
-                    z-10 peer-focus:ring-gem-green/20 rounded-full peer 
-                    peer-checked:after:translate-x-[28px] peer-checked:after:border-white 
-                    after:content-[''] after:absolute after:top-[2px] after:left-[2px] 
-                    after:bg-white after:border-gray-300 after:border after:rounded-full 
-                    after:h-6 after:w-6 after:transition-all
-                    peer-checked:bg-gem-green peer-disabled:cursor-not-allowed
-                    peer-disabled:after:bg-gray-100
-                  `}
-                  ></div>
-                </div>
-              </label>
-            </div>
-          </div>
-
           {searchType !== 'keyword_search' && (
             <div className="flex flex-col my-5" ref={categoriesRef}>
               <div className="flex justify-between">

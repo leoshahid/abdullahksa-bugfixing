@@ -45,7 +45,7 @@ export function useMapBounds() {
     let pointCount = 0;
 
     geoPoints.forEach(point => {
-      if (isIntelligentLayer(point) && point.is_refetch) {
+      if (isIntelligentLayer(point)) {
         noFly = true;
         return;
       }
