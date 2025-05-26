@@ -864,52 +864,18 @@ export function LayerProvider(props: { children: ReactNode }) {
       if (shouldInclude) {
         setShowLoaderTopup(true);
         try {
-          let res: any;
           const shouldFake = FAKE_IS_ENABLED;
 
-          if (shouldFake) {
-            const fakeZoomLevel = mapZoomToFakeDataZoom(currentZoomLevel);
-            const fakeData = await getFakeData(fakeZoomLevel);
-            res = { data: { data: fakeData } };
-          } else {
-            res = await apiRequest({
-              url: urls.fetch_dataset,
-              method: 'post',
-              body: {
-                text_search: '',
-                page_token: '',
-                user_id: authResponse.localId,
-                idToken: authResponse.idToken,
-                zoom_level: currentZoomLevel,
-                country_name: selectedCountry,
-                city_name: selectedCity,
-                boolean_query: 'TotalPopulation',
-                layer_name: 'Population Layer',
-                action: 'sample',
-                search_type: 'category_search',
-              },
-              isAuthRequest: true,
-              useCache: true,
-            });
-
-            if (!res?.data?.data) {
-              throw new Error('Invalid response data');
-            }
-          }
-          console.log('res', res);
-          console.log(
-            'Raw POPULATION features for geoPoints:',
-            JSON.stringify(res.data.data?.features, null, 2)
-          );
+          const features = await fetchPopulationByViewport(true);
 
           setGeoPoints(prevPoints => {
             const populationLayer = {
               layerId: 1001, // Special ID for population layer
               type: 'FeatureCollection',
-              features: res.data.data?.features,
+              features: features,
               display: true,
               points_color: colorOptions[0].hex,
-              layer_legend: `Population Layer (${res.data.data?.features?.length})`,
+              layer_legend: `Population Layer (${features?.length})`,
               is_grid: true,
               is_intelligent: true,
               is_fake: shouldFake,
@@ -927,7 +893,7 @@ export function LayerProvider(props: { children: ReactNode }) {
           // Update layer data map
           setLayerDataMap(prev => ({
             ...prev,
-            1001: res.data.data,
+            1001: features,
           }));
         } catch (error) {
           const message =
@@ -1013,11 +979,12 @@ export function LayerProvider(props: { children: ReactNode }) {
               return [...filteredPoints, incomeLayer];
             });
 
-            // Update layer data map
-            setLayerDataMap(prev => ({
-              ...prev,
-              1003: features,
-            }));
+            setLayerDataMap(prev => {
+              const newMap = { ...prev };
+              delete newMap[1001]; // Remove population layer if exists
+              newMap[1003] = features; // Add income layer
+              return newMap;
+            });
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to fetch income data';
             console.error('Income layer error:', error);
