@@ -33,7 +33,7 @@ export interface MeasurementActions {
 
 export const useMeasurement = (): MeasurementState & MeasurementActions => {
   const { mapRef, shouldInitializeFeatures } = useMapContext();
-  const { markers } = useCatalogContext();
+  const { markers, addMeasurement } = useCatalogContext();
   const [isMeasuring, setIsMeasuring] = useState<boolean>(false);
   const [measureSourcePoint, setMeasureSourcePoint] = useState<mapboxgl.LngLat | null>(null);
   const [measureDestinationPoint, setMeasureDestinationPoint] = useState<mapboxgl.LngLat | null>(
@@ -333,15 +333,29 @@ export const useMeasurement = (): MeasurementState & MeasurementActions => {
         .setHTML(
           `
           <div class="p-3 bg-white rounded-lg shadow-md">
-            <h3 class="font-bold text-sm mb-2">Route Information&nbsp;&nbsp;&nbsp;</h3>
+            <h3 class="font-bold text-sm mb-2">Route Information</h3>
             <div class="text-sm">
               <div class="flex justify-between mb-1">
                 <b>Distance:</b>
                 <span class="font-medium">${formattedDistance}</span>
               </div>
-              <div class="flex justify-between">
+              <div class="flex justify-between mb-3">
                 <b>Duration:</b>
                 <span class="font-medium">${formattedDuration}</span>
+              </div>
+              <div class="mt-3 flex justify-end gap-2">
+                <button
+                  class="save-measurement px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs"
+                  onclick="this.dispatchEvent(new CustomEvent('save-measurement', {bubbles: true}))"
+                >
+                  Save Measurement
+                </button>
+                <button
+                  class="exit-measure-mode-hook px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs"
+                  onclick="this.dispatchEvent(new CustomEvent('exit-measurement', {bubbles: true}))"
+                >
+                  Done
+                </button>
               </div>
             </div>
           </div>
@@ -350,10 +364,23 @@ export const useMeasurement = (): MeasurementState & MeasurementActions => {
         .addTo(mapRef.current);
 
       const popupElement = popup.getElement();
-      popupElement.addEventListener('exit-measurement', () => {
-        popup.remove();
-        setMeasurementPopup(null);
-        exitMeasureMode();
+
+      // Add event listener for saving measurement
+      popupElement.addEventListener('save-measurement', () => {
+        const name = prompt('Enter a name for this measurement:');
+        if (name) {
+          const description = prompt('Enter a description (optional):');
+          addMeasurement(
+            name,
+            description || '',
+            [point1.lng, point1.lat],
+            [point2.lng, point2.lat],
+            apiResult.data?.drive_polygon,
+            apiResult.data?.distance_in_km,
+            apiResult.data?.drive_time_in_min
+          );
+          toast.success('Measurement saved successfully');
+        }
       });
 
       popup.on('close', () => {
@@ -366,7 +393,7 @@ export const useMeasurement = (): MeasurementState & MeasurementActions => {
 
       return popup;
     },
-    [mapRef, measurementPopup, exitMeasureMode]
+    [mapRef, measurementPopup, exitMeasureMode, addMeasurement]
   );
 
   const showMeasurementResult = useCallback(

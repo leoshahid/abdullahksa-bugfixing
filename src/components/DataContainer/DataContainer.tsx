@@ -1,12 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import CatalogueCard from '../CatalogueCard/CatalogueCard';
-import styles from './DataContainer.module.css';
 import urls from '../../urls.json';
 import { Catalog, UserLayer, CardItem } from '../../types/allTypesAndInterfaces';
 import { useCatalogContext } from '../../context/CatalogContext';
-import { MapFeatures } from '../../types/allTypesAndInterfaces';
 import UserLayerCard from '../UserLayerCard/UserLayerCard';
-import userIdData from '../../currentUserId.json';
 import { isValidColor } from '../../utils/helperFunctions';
 import { useAuth } from '../../context/AuthContext'; // Add this import
 import { useNavigate } from 'react-router-dom';
@@ -15,8 +12,14 @@ import apiRequest from '../../services/apiRequest';
 import { useLayerContext } from '../../context/LayerContext';
 
 function DataContainer() {
-  const { selectedContainerType, setMarkers, handleAddClick, setGeoPoints, setCaseStudyContent } =
-    useCatalogContext();
+  const {
+    selectedContainerType,
+    setMarkers,
+    setMeasurements,
+    handleAddClick,
+    setGeoPoints,
+    setCaseStudyContent,
+  } = useCatalogContext();
   const { setSelectedCity, setSelectedCountry } = useLayerContext();
   const { isAuthenticated, authResponse, logout } = useAuth();
   const { closeModal } = useUIContext();
@@ -34,8 +37,6 @@ function DataContainer() {
   const [wsResId, setWsResId] = useState<string>('');
   const [wsResloading, setWsResLoading] = useState<boolean>(true);
   const [wsResError, setWsResError] = useState<Error | null>(null);
-
-  const navigate = useNavigate();
 
   useEffect(() => {
     // Fetch catalog collection data
@@ -214,6 +215,7 @@ function DataContainer() {
               ...(typeOfCard === 'userCatalog' && { lyrs: item.lyrs }),
             });
             setMarkers(item.display_elements.markers || []);
+            setMeasurements(item.display_elements.measurements || []);
             setCaseStudyContent(item.display_elements.case_study || []);
           }}
           can_access={item.can_access ?? false}

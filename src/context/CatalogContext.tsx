@@ -6,6 +6,7 @@ import {
   SaveResponse,
   VisualizationMode,
   MarkerData,
+  MeasurementData,
 } from '../types';
 import urls from '../urls.json';
 import userIdData from '../currentUserId.json';
@@ -185,6 +186,7 @@ export function CatalogProvider(props: { children: ReactNode }) {
   const [markers, setMarkers] = useState<MarkerData[]>([]);
   const [isMarkersEnabled, setIsMarkersEnabled] = useState<boolean>(false);
   const [caseStudyContent, setCaseStudyContent] = useState<Descendant[]>(defaultCaseStudyContent);
+  const [measurements, setMeasurements] = useState<MeasurementData[]>([]);
 
   async function fetchGeoPoints(
     id: string,
@@ -337,6 +339,17 @@ export function CatalogProvider(props: { children: ReactNode }) {
               timestamp: marker.timestamp,
             })),
             case_study: caseStudyContent,
+            measurements: measurements.map(measurement => ({
+              id: measurement.id,
+              name: measurement.name,
+              description: measurement.description,
+              sourcePoint: measurement.sourcePoint,
+              destinationPoint: measurement.destinationPoint,
+              route: measurement.route,
+              distance: measurement.distance,
+              duration: measurement.duration,
+              timestamp: measurement.timestamp,
+            })),
           },
         },
       };
@@ -624,6 +637,36 @@ export function CatalogProvider(props: { children: ReactNode }) {
     });
   }
 
+  function addMeasurement(
+    name: string,
+    description: string,
+    sourcePoint: [number, number],
+    destinationPoint: [number, number],
+    route: any,
+    distance: number,
+    duration: number
+  ) {
+    const newMeasurement: MeasurementData = {
+      id: uuidv4(),
+      name,
+      description,
+      sourcePoint,
+      destinationPoint,
+      route,
+      distance,
+      duration,
+      timestamp: Date.now(),
+    };
+
+    setMeasurements(prevMeasurements => [...prevMeasurements, newMeasurement]);
+  }
+
+  function deleteMeasurement(id: string) {
+    setMeasurements(prevMeasurements =>
+      prevMeasurements.filter(measurement => measurement.id !== id)
+    );
+  }
+
   return (
     <CatalogContext.Provider
       value={{
@@ -707,6 +750,10 @@ export function CatalogProvider(props: { children: ReactNode }) {
         setIsMarkersEnabled,
         caseStudyContent,
         setCaseStudyContent,
+        measurements,
+        addMeasurement,
+        setMeasurements,
+        deleteMeasurement,
       }}
     >
       {children}

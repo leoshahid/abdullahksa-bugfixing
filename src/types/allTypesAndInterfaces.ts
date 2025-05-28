@@ -42,6 +42,7 @@ export interface Catalog {
       timestamp: number;
       coordinates: [number, number];
     }[];
+    measurements: MeasurementData[];
     case_study: Descendant[];
   };
 }
@@ -199,6 +200,18 @@ export interface CatalogContextType {
   deleteMarker: (id: string) => void;
   isMarkersEnabled: boolean;
   setIsMarkersEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  measurements: MeasurementData[];
+  addMeasurement: (
+    name: string,
+    description: string,
+    sourcePoint: [number, number],
+    destinationPoint: [number, number],
+    route: any,
+    distance: number,
+    duration: number
+  ) => void;
+  setMeasurements: React.Dispatch<React.SetStateAction<MeasurementData[]>>;
+  deleteMeasurement: (id: string) => void;
 }
 
 export interface GradientColorBasedOnZone extends MapFeatures {
@@ -798,4 +811,16 @@ export interface PropertyStats {
   count: number;
   average?: number;
   median?: number;
+}
+
+export interface MeasurementData {
+  id: string;
+  name: string;
+  description: string;
+  sourcePoint: [number, number];
+  destinationPoint: [number, number];
+  route: any;
+  distance: number;
+  duration: number;
+  timestamp: number;
 }

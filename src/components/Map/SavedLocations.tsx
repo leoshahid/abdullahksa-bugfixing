@@ -7,12 +7,21 @@ import { useLongPress } from 'use-long-press';
 import MapMenu from './MapMenu';
 import './mapbox-custom.css';
 import { useMeasurement } from '../../hooks/useMeasurement';
+import { MeasurementData } from '../../types';
 
 const SavedLocations: React.FC = () => {
   const { mapRef, shouldInitializeFeatures } = useMapContext();
   const { openModal, closeModal, isModalOpen } = useUIContext();
   const [tempMarker, setTempMarker] = useState<mapboxgl.Marker | null>(null);
-  const { markers, addMarker, deleteMarker, setMarkers, isMarkersEnabled } = useCatalogContext();
+  const {
+    markers,
+    addMarker,
+    deleteMarker,
+    setMarkers,
+    isMarkersEnabled,
+    measurements,
+    deleteMeasurement,
+  } = useCatalogContext();
   const [lastLngLat, setLastLngLat] = useState<mapboxgl.LngLat | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuLngLat, setMenuLngLat] = useState<mapboxgl.LngLat | null>(null);
@@ -28,6 +37,7 @@ const SavedLocations: React.FC = () => {
     setMeasureDestinationPoint,
     setMeasurementResult,
     setMeasureMarkers,
+    decodePolyline,
   } = useMeasurement();
 
   const handleMapClickForMeasurementRef = useRef(handleMapClickForMeasurement);
@@ -343,7 +353,7 @@ const SavedLocations: React.FC = () => {
       closeMenu();
       if (typeof idOrLngLat === 'string') {
         // If it's a marker ID, pass it directly
-        initializeMeasureMode(idOrLngLat);
+        initializeMeasureMode();
       } else {
         // If it's a LngLat from map click, set it as source point
         setIsMeasuring(true);
@@ -355,12 +365,21 @@ const SavedLocations: React.FC = () => {
           const marker = new mapboxgl.Marker({ color: '#FF0000' })
             .setLngLat(idOrLngLat)
             .addTo(mapRef.current);
-          setMeasureMarkers(prev => [...prev, marker]);
+          setMeasureMarkers([marker]);
           mapRef.current.getCanvas().style.cursor = 'crosshair';
         }
       }
     },
-    [closeMenu, initializeMeasureMode, mapRef]
+    [
+      closeMenu,
+      initializeMeasureMode,
+      mapRef,
+      setIsMeasuring,
+      setMeasureSourcePoint,
+      setMeasureDestinationPoint,
+      setMeasurementResult,
+      setMeasureMarkers,
+    ]
   );
 
   const longPressHandler = useLongPress(
@@ -539,6 +558,151 @@ const SavedLocations: React.FC = () => {
     };
   }, [isMeasuring, exitMeasureMode]);
 
+  const handleDeleteMeasurement = useCallback(
+    (id: string) => {
+      deleteMeasurement(id);
+    },
+    [deleteMeasurement]
+  );
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !shouldInitializeFeatures) return;
+
+    // Add measurement markers and routes
+    measurements.forEach((measurement: MeasurementData) => {
+      const sourceMarker = new mapboxgl.Marker({ color: '#FF0000' })
+        .setLngLat(measurement.sourcePoint)
+        .addTo(map);
+
+      const destMarker = new mapboxgl.Marker({ color: '#0000FF' })
+        .setLngLat(measurement.destinationPoint)
+        .addTo(map);
+
+      // Add route if it exists
+      if (measurement.route) {
+        try {
+          let routeData;
+          if (typeof measurement.route === 'string') {
+            try {
+              routeData = JSON.parse(measurement.route);
+            } catch (parseError) {
+              console.error('Error parsing route data:', parseError);
+              // If parsing fails, try to decode as polyline
+              try {
+                const coordinates = decodePolyline(measurement.route);
+                routeData = {
+                  type: 'Feature',
+                  properties: {},
+                  geometry: {
+                    type: 'LineString',
+                    coordinates: coordinates,
+                  },
+                };
+              } catch (polylineError) {
+                console.error('Error processing polyline:', polylineError);
+                return;
+              }
+            }
+          } else {
+            routeData = measurement.route;
+          }
+
+          // Remove existing source and layer if they exist
+          if (map.getSource(`measure-route-${measurement.id}`)) {
+            map.removeLayer(`measure-route-line-${measurement.id}`);
+            map.removeSource(`measure-route-${measurement.id}`);
+          }
+
+          // Add the route source and layer
+          map.addSource(`measure-route-${measurement.id}`, {
+            type: 'geojson',
+            data: routeData,
+          });
+
+          map.addLayer({
+            id: `measure-route-line-${measurement.id}`,
+            type: 'line',
+            source: `measure-route-${measurement.id}`,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round',
+            },
+            paint: {
+              'line-color': '#7D00B8',
+              'line-width': 4,
+            },
+          });
+        } catch (error) {
+          console.error('Error displaying route:', error);
+        }
+      }
+
+      // Create popup content
+      const popupContent = document.createElement('div');
+      popupContent.className =
+        'measurement-popup-content bg-white rounded-lg shadow-lg p-2 max-w-xs';
+      popupContent.innerHTML = `
+        <h3 class="font-bold text-lg text-gray-800 mb-2">${measurement.name}</h3>
+        <p class="text-gray-600 mb-3">${measurement.description}</p>
+        <div class="text-sm">
+          <div class="flex justify-between mb-1">
+            <b>Distance:</b>
+            <span>${measurement.distance.toFixed(2)} km</span>
+          </div>
+          <div class="flex justify-between mb-3">
+            <b>Duration:</b>
+            <span>${measurement.duration} min</span>
+          </div>
+        </div>
+        <div class="mt-2 w-full flex justify-end">
+          <button class="delete-measurement text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded" data-id="${measurement.id}">
+            Delete
+          </button>
+        </div>
+      `;
+
+      const popup = new mapboxgl.Popup({
+        offset: 0,
+        className: 'measurement-popup',
+        closeButton: true,
+        closeOnClick: false,
+      }).setDOMContent(popupContent);
+
+      sourceMarker.setPopup(popup);
+      destMarker.setPopup(popup);
+
+      // Add click handler for delete button
+      popup.on('open', () => {
+        const deleteButton = popupContent.querySelector(
+          `.delete-measurement[data-id="${measurement.id}"]`
+        );
+        if (deleteButton) {
+          deleteButton.addEventListener('click', () => {
+            handleDeleteMeasurement(measurement.id);
+            sourceMarker.remove();
+            destMarker.remove();
+            // Remove route layer and source
+            if (map.getSource(`measure-route-${measurement.id}`)) {
+              map.removeLayer(`measure-route-line-${measurement.id}`);
+              map.removeSource(`measure-route-${measurement.id}`);
+            }
+          });
+        }
+      });
+    });
+
+    // Cleanup function
+    return () => {
+      measurements.forEach((measurement: MeasurementData) => {
+        if (map.getSource(`measure-route-${measurement.id}`)) {
+          map.removeLayer(`measure-route-line-${measurement.id}`);
+          map.removeSource(`measure-route-${measurement.id}`);
+        }
+      });
+    };
+  }, [measurements, shouldInitializeFeatures, mapRef, handleDeleteMeasurement]);
+
   return (
     <>
       {menuPosition && menuLngLat && (
@@ -547,8 +711,8 @@ const SavedLocations: React.FC = () => {
           position={menuPosition}
           lngLat={menuLngLat}
           onClose={closeMenu}
-          onSave={createNewMarker}
-          onMeasureDistance={startMeasureDistance}
+          onSave={() => createNewMarker(menuLngLat)}
+          onMeasureDistance={() => startMeasureDistance(menuLngLat)}
           onAction={action => console.log('Action:', action)}
         />
       )}
