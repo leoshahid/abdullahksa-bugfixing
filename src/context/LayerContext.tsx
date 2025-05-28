@@ -993,6 +993,7 @@ export function LayerProvider(props: { children: ReactNode }) {
             setLayerDataMap(prev => {
               const newMap = { ...prev };
               delete newMap[1001]; // Remove population layer if exists
+              delete newMap[1003]; // Remove income layer if exists
               newMap[1003] = features; // Add income layer
               return newMap;
             });
