@@ -42,9 +42,11 @@ function Chat(props: ChatProps = defaultProps) {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const userMessages = messages.filter(m => m.isUser).map(m => m.content);
+
+  const [isSampleLoading, setIsSampleLoading] = useState(false);
+  const [isFullDataLoading, setIsFullDataLoading] = useState(false);
 
   useEffect(() => {
     if (props.topic) setTopic(props.topic);
@@ -64,11 +66,14 @@ function Chat(props: ChatProps = defaultProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim().length < 10 || isLoading) return;
+    if (input.trim().length < 1 || isLoading) return;
+    setInput('');
 
     await sendMessage(input);
-    setInput('');
     setHistoryIndex(-1); // Reset history index after sending
+    if (inputRef.current) {
+      inputRef.current.style.height = '40px';
+    }
   };
 
   const handleHistoryNavigation = () => {
@@ -121,7 +126,11 @@ function Chat(props: ChatProps = defaultProps) {
         layer_name: `${cityName} ${_.upperFirst(booleanQuery)}`,
       };
 
-      setShowLoaderTopup(true);
+      if (action === 'sample') {
+        setIsSampleLoading(true);
+      } else {
+        setIsFullDataLoading(true);
+      }
 
       if (action === 'full data') {
         console.log('Setting centralizeOnce to true for full data');
@@ -156,6 +165,9 @@ function Chat(props: ChatProps = defaultProps) {
       if (typeof setMessages === 'function') {
         setMessages(prev => [...prev, errorMessage]);
       }
+    } finally {
+      setIsSampleLoading(false);
+      setIsFullDataLoading(false);
     }
   };
 
@@ -192,7 +204,9 @@ function Chat(props: ChatProps = defaultProps) {
           } ${isInvalidResponse ? 'bg-amber-50 border-amber-200' : ''} max-w-[85%]`}
         >
           {/* Message content */}
-          <div className="whitespace-pre-wrap">{message.content}</div>
+          <div className="whitespace-pre-wrap break-words overflow-wrap break-word">
+            {message.content}
+          </div>
 
           {/* Suggestions for invalid responses */}
           {isInvalidResponse && message.responseData.suggestions && (
@@ -239,6 +253,7 @@ function Chat(props: ChatProps = defaultProps) {
               </p>
               <div className="flex gap-2">
                 <button
+                  disabled={isSampleLoading || isFullDataLoading}
                   onClick={() => {
                     if (message.responseData?.body) {
                       handleDatasetFetch('sample', message.responseData.body);
@@ -246,9 +261,14 @@ function Chat(props: ChatProps = defaultProps) {
                   }}
                   className="bg-white border-2 border-[#115740] text-[#115740] px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
                 >
-                  Get Sample
+                  {isSampleLoading ? (
+                    <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-[#115740] rounded-full animate-spin"></span>
+                  ) : (
+                    'Get Sample'
+                  )}
                 </button>
                 <button
+                  disabled={isSampleLoading || isFullDataLoading}
                   onClick={() => {
                     if (message.responseData?.body) {
                       handleDatasetFetch('full data', message.responseData.body);
@@ -256,10 +276,16 @@ function Chat(props: ChatProps = defaultProps) {
                   }}
                   className="bg-[#115740] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#123f30] transition-colors"
                 >
-                  Full Data{' '}
-                  {message.responseData?.cost
-                    ? `($${parseFloat(message.responseData.cost).toFixed(2)})`
-                    : ''}
+                  {isFullDataLoading ? (
+                    <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-white rounded-full animate-spin"></span>
+                  ) : (
+                    <>
+                      Full Data
+                      {message.responseData?.cost
+                        ? `($${parseFloat(message.responseData.cost).toFixed(2)})`
+                        : ''}
+                    </>
+                  )}
                 </button>
               </div>
               <button
@@ -354,20 +380,31 @@ function Chat(props: ChatProps = defaultProps) {
           >
             <HiArrowUp className="w-5 h-5" />
           </button>
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 p-2 border-none focus:ring-0 focus:outline-none"
+            className="flex-1 p-2 border-none focus:ring-0 focus:outline-none resize-none min-h-[40px] h-[40px] max-h-24 leading-6 overflow-y-auto scrollbar-hide"
+            onInput={e => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = '40px'; // Reset height first
+              target.style.height = `${Math.min(target.scrollHeight, 96)}px`; // Then adjust if needed
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
             disabled={isLoading}
+            rows={1}
           />
           <button
             type="submit"
-            disabled={input.trim().length < 10 || isLoading}
+            disabled={input.trim().length < 1 || isLoading}
             className={`p-2 ${
-              input.trim().length < 10 || isLoading
+              input.trim().length < 1 || isLoading
                 ? 'text-gray-300 cursor-not-allowed'
                 : 'text-gem-green hover:text-gem-green/80 transition-colors'
             }`}
