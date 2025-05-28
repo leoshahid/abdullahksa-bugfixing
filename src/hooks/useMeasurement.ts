@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import mapboxgl from 'mapbox-gl';
+import mapboxgl, { LngLat } from 'mapbox-gl';
 import apiRequest from '../services/apiRequest';
 import urls from '../urls.json';
 import { useMapContext } from '../context/MapContext';
 import { toast } from 'sonner';
+import { useCatalogContext } from '../context/CatalogContext';
 
 export interface MeasurementState {
   isMeasuring: boolean;
@@ -23,11 +24,16 @@ export interface MeasurementActions {
   clearMeasurementLayers: () => void;
   displayRouteOnMap: (polygonData: any) => void;
   decodePolyline: (encoded: string) => [number, number][];
+  setIsMeasuring: (isMeasuring: boolean) => void;
+  setMeasureSourcePoint: (point: mapboxgl.LngLat | null) => void;
+  setMeasureDestinationPoint: (point: mapboxgl.LngLat | null) => void;
+  setMeasurementResult: (result: any | null) => void;
+  setMeasureMarkers: (markers: mapboxgl.Marker[]) => void;
 }
 
 export const useMeasurement = (): MeasurementState & MeasurementActions => {
   const { mapRef, shouldInitializeFeatures } = useMapContext();
-
+  const { markers } = useCatalogContext();
   const [isMeasuring, setIsMeasuring] = useState<boolean>(false);
   const [measureSourcePoint, setMeasureSourcePoint] = useState<mapboxgl.LngLat | null>(null);
   const [measureDestinationPoint, setMeasureDestinationPoint] = useState<mapboxgl.LngLat | null>(
@@ -73,26 +79,47 @@ export const useMeasurement = (): MeasurementState & MeasurementActions => {
     setPreviewLine(null);
   }, [mapRef]);
 
-  const initializeMeasureMode = useCallback(() => {
-    setIsMeasuring(true);
-    setMeasureSourcePoint(null);
-    setMeasureDestinationPoint(null);
-    setMeasurementResult(null);
+  const initializeMeasureMode = useCallback(
+    (sourcePointId?: string) => {
+      setIsMeasuring(true);
+      // If sourcePointId is a marker ID, get its coordinates
+      // Otherwise, it's already a LngLat object from the map click
+      const sourcePoint = sourcePointId
+        ? (() => {
+            const [lng, lat] =
+              markers.find(marker => marker.id === sourcePointId)?.coordinates || [];
+            return lng && lat ? new mapboxgl.LngLat(lng, lat) : null;
+          })()
+        : null;
 
-    measureMarkersRef.current.forEach(marker => marker.remove());
-    setMeasureMarkers([]);
+      setMeasureSourcePoint(sourcePoint);
+      setMeasureDestinationPoint(null);
+      setMeasurementResult(null);
 
-    if (measurementPopup) {
-      measurementPopup.remove();
-      setMeasurementPopup(null);
-    }
+      measureMarkersRef.current.forEach(marker => marker.remove());
+      setMeasureMarkers([]);
 
-    clearMeasurementLayers();
+      if (measurementPopup) {
+        measurementPopup.remove();
+        setMeasurementPopup(null);
+      }
 
-    if (mapRef.current) {
-      mapRef.current.getCanvas().style.cursor = 'crosshair';
-    }
-  }, [mapRef, measurementPopup, clearMeasurementLayers]);
+      clearMeasurementLayers();
+
+      if (mapRef.current) {
+        mapRef.current.getCanvas().style.cursor = 'crosshair';
+      }
+
+      // If we have a source point, add its marker
+      if (sourcePoint && mapRef.current) {
+        const marker = new mapboxgl.Marker({ color: '#FF0000' })
+          .setLngLat(sourcePoint)
+          .addTo(mapRef.current);
+        setMeasureMarkers(prev => [...prev, marker]);
+      }
+    },
+    [mapRef, measurementPopup, clearMeasurementLayers, markers]
+  );
 
   const exitMeasureMode = useCallback(() => {
     setIsMeasuring(false);
@@ -476,7 +503,9 @@ export const useMeasurement = (): MeasurementState & MeasurementActions => {
         };
 
         if (measureSourcePoint.lat === e.lngLat.lat && measureSourcePoint.lng === e.lngLat.lng) {
-          toast.warning('Measurement API Call: Source and Destination points are identical.', body);
+          toast.warning('Measurement API Call: Source and Destination points are identical.', {
+            description: 'Please select different points.',
+          });
           console.warn('Measurement API Call: Source and Destination points are identical.', body);
         }
 
@@ -688,5 +717,10 @@ export const useMeasurement = (): MeasurementState & MeasurementActions => {
     clearMeasurementLayers,
     displayRouteOnMap,
     decodePolyline,
+    setIsMeasuring,
+    setMeasureSourcePoint,
+    setMeasureDestinationPoint,
+    setMeasurementResult,
+    setMeasureMarkers,
   };
 };

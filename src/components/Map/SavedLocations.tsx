@@ -18,8 +18,17 @@ const SavedLocations: React.FC = () => {
   const [menuLngLat, setMenuLngLat] = useState<mapboxgl.LngLat | null>(null);
 
   const { isMobile } = useUIContext();
-  const { isMeasuring, initializeMeasureMode, exitMeasureMode, handleMapClickForMeasurement } =
-    useMeasurement();
+  const {
+    isMeasuring,
+    initializeMeasureMode,
+    exitMeasureMode,
+    handleMapClickForMeasurement,
+    setIsMeasuring,
+    setMeasureSourcePoint,
+    setMeasureDestinationPoint,
+    setMeasurementResult,
+    setMeasureMarkers,
+  } = useMeasurement();
 
   const handleMapClickForMeasurementRef = useRef(handleMapClickForMeasurement);
   useEffect(() => {
@@ -157,14 +166,23 @@ const SavedLocations: React.FC = () => {
             <h3 class="font-bold text-lg text-gray-800 mb-2">${markerData.name}</h3>
             <p class="text-gray-600 mb-${markerData.description ? '3' : '0'}">${markerData.description}</p>
             <div class="mt-2 w-full flex justify-end gap-1">
-              <button class="delete-location text-xs bg-red-500 hover:bg-red-600 transition-colors duration-200 text-white px-2 py-1.5 rounded-md shadow-sm flex items-center justify-center" data-id="${markerData.id}">
+              <button aria-label="Delete Location" class="delete-location text-xs bg-red-500 hover:bg-red-600 transition-colors duration-200 text-white px-2 py-1.5 rounded-md shadow-sm flex items-center justify-center" data-id="${markerData.id}">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </button>
-              <button class="edit-location text-xs bg-blue-500 hover:bg-blue-600 transition-colors duration-200 text-white px-2 py-1 rounded-md shadow-sm flex items-center justify-center" data-id="${markerData.id}">
+              <button aria-label="Edit Location" class="edit-location text-xs bg-blue-500 hover:bg-blue-600 transition-colors duration-200 text-white px-2 py-1 rounded-md shadow-sm flex items-center justify-center" data-id="${markerData.id}">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+
+             <button aria-label="Measure from this location" class="measure-location text-xs bg-gem-gradient hover:bg-gem-gradient-hover transition-colors duration-200 text-white px-2 py-1 rounded-md shadow-sm flex items-center justify-center" data-id="${markerData.id}">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 256 256" stroke="currentColor">
+                  <rect x="26.2" y="82.7" width="203.6" height="90.51" rx="8" transform="translate(-53 128) rotate(-45)" stroke-linecap="round" stroke-linejoin="round" stroke-width="12"/>
+                  <line x1="132" y1="60" x2="164" y2="92" stroke-linecap="round" stroke-linejoin="round" stroke-width="12"/>
+                  <line x1="96" y1="96" x2="128" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="12"/>
+                  <line x1="60" y1="132" x2="92" y2="164" stroke-linecap="round" stroke-linejoin="round" stroke-width="12"/>
                 </svg>
               </button>
             </div>
@@ -209,6 +227,19 @@ const SavedLocations: React.FC = () => {
               e.preventDefault();
               e.stopPropagation();
               handleEdit(id);
+            };
+          }
+        }
+      });
+
+      document.querySelectorAll('.measure-location').forEach(button => {
+        if (button instanceof HTMLElement) {
+          const id = button.getAttribute('data-id');
+          if (id) {
+            button.onclick = e => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleMeasure(id);
             };
           }
         }
@@ -269,6 +300,7 @@ const SavedLocations: React.FC = () => {
     },
     [isMarkersEnabled, markers, openModal, createMarkerModal, setMarkers]
   );
+
   const formatCoordinates = useCallback((lngLat: mapboxgl.LngLat | null) => {
     if (!lngLat) return '';
     return `${lngLat.lng.toFixed(6)}, ${lngLat.lat.toFixed(6)}`;
@@ -306,10 +338,30 @@ const SavedLocations: React.FC = () => {
     [isMarkersEnabled, mapRef, tempMarker, addMarker, openModal, createMarkerModal]
   );
 
-  const startMeasureDistance = useCallback(() => {
-    closeMenu();
-    initializeMeasureMode();
-  }, [closeMenu, initializeMeasureMode]);
+  const startMeasureDistance = useCallback(
+    (idOrLngLat: string | mapboxgl.LngLat) => {
+      closeMenu();
+      if (typeof idOrLngLat === 'string') {
+        // If it's a marker ID, pass it directly
+        initializeMeasureMode(idOrLngLat);
+      } else {
+        // If it's a LngLat from map click, set it as source point
+        setIsMeasuring(true);
+        setMeasureSourcePoint(idOrLngLat);
+        setMeasureDestinationPoint(null);
+        setMeasurementResult(null);
+
+        if (mapRef.current) {
+          const marker = new mapboxgl.Marker({ color: '#FF0000' })
+            .setLngLat(idOrLngLat)
+            .addTo(mapRef.current);
+          setMeasureMarkers(prev => [...prev, marker]);
+          mapRef.current.getCanvas().style.cursor = 'crosshair';
+        }
+      }
+    },
+    [closeMenu, initializeMeasureMode, mapRef]
+  );
 
   const longPressHandler = useLongPress(
     event => {
@@ -330,6 +382,17 @@ const SavedLocations: React.FC = () => {
       captureEvent: true,
       cancelOnMovement: true,
     }
+  );
+
+  const handleMeasure = useCallback(
+    (id: string) => {
+      if (!isMarkersEnabled) return;
+      const marker = markers.find(marker => marker.id === id);
+      if (!marker) return;
+
+      startMeasureDistance(id);
+    },
+    [isMarkersEnabled, markers, startMeasureDistance]
   );
 
   useEffect(() => {
