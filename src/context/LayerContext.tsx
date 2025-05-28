@@ -303,6 +303,26 @@ export function LayerProvider(props: { children: ReactNode }) {
         idToken = '';
       }
 
+      // For keyword search, set up the layer first, as text search can have max 1 layer
+      if (searchType === 'keyword_search' && textSearchInput?.trim()) {
+        const keywordLayer = {
+          id: 1,
+          name: textSearchInput.trim(),
+          points_color: '',
+          excludedTypes: [],
+          includedTypes: [textSearchInput.trim()],
+        };
+
+        // Update reqFetchDataset with the keyword layer
+        setReqFetchDataset(prev => ({
+          ...prev,
+          layers: [keywordLayer],
+        }));
+
+        // Use this layer for the request
+        layerId = 1;
+      }
+
       const layers = layerId
         ? [reqFetchDataset.layers.find(l => l.id === layerId)]
         : reqFetchDataset.layers;
@@ -382,8 +402,8 @@ export function LayerProvider(props: { children: ReactNode }) {
           body: {
             country_name: reqFetchDataset.selectedCountry,
             city_name: reqFetchDataset.selectedCity,
-            boolean_query: '',
-            layerId: payloadLayerId,
+            boolean_query: `@${textSearchInput?.trim()}@`, // Use the search term as the boolean query
+            layerId: pageToken ? prevPrdcerLyrId || '' : '',
             layer_name: defaultName,
             action: action,
             search_type: searchType,
